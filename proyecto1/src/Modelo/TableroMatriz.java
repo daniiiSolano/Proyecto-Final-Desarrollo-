@@ -2,39 +2,31 @@ package Modelo;
 
 public class TableroMatriz {
 
-    private Casillas [][] matriz;
-    private int fila;
-    private int columna;
+    public static final int filas = 6;
+    public static final int columnas = 6;
+    public static final int parejas = filas * columnas / 2; // 18
 
+    private final Casillas[][] matriz = new Casillas[filas][columnas];
 
-    public TableroMatriz(Casillas[][] matriz, int fila, int columna) {
-        this.fila = fila;
-        this.columna = columna;
-        this.matriz = matriz;
-    }
-
-    public int getFila() {
-        return fila;
-    }
-
-    public int getColumna() {
-        return columna;
-    }
-
-    public Casillas obtenerCasillas(int fila, int columna){
-        if (posicionValida(fila, columna)) {
-            return matriz[fila][columna];
+    public TableroMatriz(int desplazamiento) {
+        for (int f = 0; f < filas; f++) {
+            for (int c = 0; c < columnas; c++) {
+                int posicion = f * columnas + c;
+                matriz[f][c] = new Casillas((posicion + desplazamiento) % parejas + 1);
+            }
         }
-        return null;
     }
 
-    public void iniciarTablero(){
+    public Casillas getCasilla(int fila, int columna) {
+        return matriz[fila][columna];
     }
-
-    public void mezclarCasillas(){
-        //falta el random
+    public String[][] getRutasImagenes() {
+        String[][] rutas = new String[filas][columnas];
+        for (int f = 0; f < filas; f++) {
+            for (int c = 0; c < columnas; c++) {
+                rutas[f][c] = matriz[f][c].getRutaImagen();
+            }
+        }
+        return rutas;
     }
-
-    public boolean posicionValida(int fila, int columna){
-        return fila >= 0 && fila < this.fila && columna >= 0 && columna < this.columna;    }
 }

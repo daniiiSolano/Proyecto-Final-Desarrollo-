@@ -1,79 +1,33 @@
 package Modelo;
 
+import Modelo.Jugador;
+import Modelo.TableroMatriz;
+
 public class ModoClasico {
 
-    private int tiempo;
-    private boolean juegoFinalizado;
-    private int turnoActual;
+    public static final int TIEMPO_JUGADA_SEG = 10;
+    public static final int BONO_ACIERTO_SEG = 7;
 
-    private TableroMatriz m1;
-    private TableroMatriz m2;
-    private Jugador jugador1;
-    private Jugador jugador2;
+    private final Jugador jugador1;
+    private final Jugador jugador2;
+    private final TableroMatriz tablero1 = new TableroMatriz(0);
+    private final TableroMatriz tablero2 = new TableroMatriz(7);
+    private int turnoActual = 1; // 1 o 2
 
-
-//metodos
-
-
-    public ModoClasico(int tiempo, boolean juegoFinalizado, int turnoActual, TableroMatriz m1, TableroMatriz m2, Jugador jugador1, Jugador jugador2) {
-        this.tiempo = 10;
-        this.juegoFinalizado = false; //al inicio debe ir falso y dsps cambia
-        this.turnoActual = turnoActual;
-        this.m1 = new TableroMatriz(6,6);
-        this.m2 = new TableroMatriz(6,6);
+    public ModoClasico(Jugador jugador1, Jugador jugador2) {
         this.jugador1 = jugador1;
         this.jugador2 = jugador2;
     }
 
-    //logic
-    public void iniciarPartida() {
-        this.juegoFinalizado = false; //
+    public Jugador getJugador(int numero) {
+        return numero == 1 ? jugador1 : jugador2;
     }
 
-    public boolean verificarPareja() {
-        return false;
+    public TableroMatriz getTablero(int numero) {
+        return numero == 1 ? tablero1 : tablero2;
     }
 
-    public void cambiarTurno() {
-        this.turnoActual = (this.turnoActual == 1) ? 2 : 1; //Si es el turno 1 pasa al 2, si es el 2 pasa al 1, y reinicia el reloj a 10
-        this.tiempo = 10;
-    }
-
-    public void iniciarTemporalizador() {
-        //todo
-    }
-
-    public void actualizarTiempo() {
-        // if (tiempo < 10)
-    }
-
-    public void detenerTiempo() {
-        //todo
-    }
-
-    public boolean todasLasParejasEncontradas() {
-        if (jugador1 == 1) {
-            return m1.todasLasParejasEncontradas();
-        } else {
-            return m2.todasLasParejasEncontradas();
-        }
-    public int contarParejas() {
-        if (numeroJugador == 1) {
-            return m1.contarParejasEncontradas();
-        } else {
-            return m2.contarParejasEncontradas();
-        }
-    }
-
-        public boolean hayGanador() {
-            if (todasLasParejasEncontradas(1) || todasLasParejasEncontradas(2)) {
-                return true;
-            }
-            return false;
-        }
-
-        public void finalizarPartida () {
-            this.juegoFinalizado = true;
-        }
+    public int getTurnoActual() {
+        return turnoActual;
     }
 }

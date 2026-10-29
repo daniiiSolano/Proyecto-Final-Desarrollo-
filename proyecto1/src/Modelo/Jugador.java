@@ -2,35 +2,22 @@ package Modelo;
 
 public class Jugador {
 
-//atributos
-    private String user;
+    private final String nombre;
     private int intentos;
-    private double puntos;
-    private int partidasGanadas;
-    private int parejasEncontradas;
-    private double premioAcumulado;
+    private double premio;
 
-//metodos
+    public Jugador(String nombre) {
+        this(nombre, 0, 0.0);
+    }
 
-    public Jugador(String user, int intentos, double puntos, int partidasGanadas, int parejasEncontradas, double premioAcumulado) {
-        this.user = user;
+    public Jugador(String nombre, int intentos, double premio) {
+        this.nombre = nombre;
         this.intentos = intentos;
-        this.puntos = puntos;
-        this.partidasGanadas = 0; // los 3 inician en cero en cada partida
-        this.parejasEncontradas = 0;
-        this.premioAcumulado = 0;
+        this.premio = premio;
     }
 
-
-//GETYSET
-
-
-    public String getUser() {
-        return user;
-    }
-
-    public void setUser(String user) {
-        this.user = user;
+    public String getNombre() {
+        return nombre;
     }
 
     public int getIntentos() {
@@ -41,33 +28,11 @@ public class Jugador {
         this.intentos = intentos;
     }
 
-    public double getPuntos() {
-        return puntos;
+    public double getPremio() {
+        return premio;
     }
 
-    public void setPuntos(double puntos) {
-        this.puntos = puntos;
-    }
-
-
-//logca
-    public void incrementarIntentos(){
-        this.intentos++;
-    }
-
-    public void incrementarPartidasGanadas(){
-        this.partidasGanadas++;
-    }
-
-    public void incrementarParejasEncontradas(){
-        this.parejasEncontradas++;
-    }
-
-    public void agregarPremio(double monto){
-        this.premioAcumulado +=monto;
-    }
-
-    public void reiniciarPartida(){
-        this.intentos = 0;
+    public void setPremio(double premio) {
+        this.premio = premio;
     }
 }
