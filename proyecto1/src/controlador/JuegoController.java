@@ -2,13 +2,13 @@ package controlador;
 
 import apoyo.Recursos;
 import hilos.HiloSonido;
-import modelo.AutenticadorFacial;
-import modelo.GestorPremios;
-import modelo.Jugador;
-import modelo.LibroHistoria;
-import modelo.ModoClasico;
-import modelo.ModoPatron;
-import modelo.TableroMatriz;
+import Modelo.AutenticadorFacial;
+import Modelo.GestorPremios;
+import Modelo.Jugador;
+import Modelo.LibroHistoria;
+import Modelo.ModoClasico;
+import Modelo.ModoPatron;
+import Modelo.TableroMatriz;
 import vista.VentanaPrincipal;
 
 import java.io.File;
@@ -101,11 +101,11 @@ public class JuegoController {
         libro.reiniciar();
     }
     public int getFilasTablero() {
-        return TableroMatriz.FILAS;
+        return TableroMatriz.filas;
     }
 
     public int getColumnasTablero() {
-        return TableroMatriz.COLUMNAS;
+        return TableroMatriz.columnas;
     }
 
     public String getNombreJugador(int numero) {
@@ -138,11 +138,11 @@ public class JuegoController {
     }
 
     public int getTiempoTotalPatron() {
-        return ModoPatron.TIEMPO_TOTAL_SEG;
+        return ModoPatron.tiempo;
     }
 
     public int getTiempoEntreCasillas() {
-        return ModoPatron.TIEMPO_ENTRE_CASILLAS_SEG;
+        return ModoPatron.tiempoEntreCasillas;
     }
 
     //PREMIOS
