@@ -50,7 +50,7 @@ public class Jugador {
     }
 
 
-
+//logca
     public void incrementarIntentos(){
         this.intentos++;
     }

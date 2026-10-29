@@ -144,6 +144,7 @@ public class JuegoController {
     public int getTiempoEntreCasillas() {
         return ModoPatron.TIEMPO_ENTRE_CASILLAS_SEG;
     }
+
     //PREMIOS
     public List<Jugador> getTop5() {
         return gestorPremios.obtenerTop5();

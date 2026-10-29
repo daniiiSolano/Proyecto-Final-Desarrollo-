@@ -82,6 +82,7 @@ public class Casillas {
         this.seleccionable = false; // como ya hay pareja no se puede seleccionar
     }
 
+
     public void setSeleccionable(boolean seleccionable){
         this.seleccionable = seleccionable; // Se usa el seleccionable y no un true para poder decidir cuándo bloquear/desbloquear la casilla
     }
