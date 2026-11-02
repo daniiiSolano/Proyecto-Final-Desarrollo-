@@ -18,6 +18,6 @@ public class GestorPremios {
         return new ArrayList<>(jugadores.subList(0, Math.min(5, jugadores.size())));
     }
     public String getTextoTipoCambio() {
-        return "Tipo de cambio BCR: pendiente de consultar";
+        return "Tipo de cambio BCCR: pendiente de consultar";
     }
 }
