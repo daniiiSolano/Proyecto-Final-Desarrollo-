@@ -2,8 +2,6 @@ package modelo;
 
 public class Jugador {
 
-//atributos
-
     private final String nombre;
     private int intentos;
     private double premio;
