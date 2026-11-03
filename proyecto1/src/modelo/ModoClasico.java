@@ -1,14 +1,11 @@
-package Modelo;
+package modelo;
 
-import Modelo.Jugador;
-import Modelo.TableroMatriz;
-
-import java.util.Timer;
+import javax.swing.Timer;
 
 public class ModoClasico {
 
-    private static final int TIEMPO_JUGADA_SEG = 10;
-    private static final int BONO_ACIERTO_SEG = 7;
+    public static final int TIEMPO_JUGADA_SEG = 10;
+    public static final int BONO_ACIERTO_SEG = 7;
     private int tiempo;
     private boolean juegoFinalizado;
     private final Jugador jugador1;
@@ -19,7 +16,10 @@ public class ModoClasico {
 
     private Timer temporizador; // Temporizador para controlar el tiempo de cada turno library
 
-    //
+    public ModoClasico(Jugador jugador1, Jugador jugador2) {
+        this(TIEMPO_JUGADA_SEG, false, 1, new TableroMatriz(0), new TableroMatriz(7), jugador1, jugador2);
+    }
+
     public ModoClasico(int tiempo, boolean juegoFinalizado, int turnoActual, TableroMatriz tablero1, TableroMatriz tabblero2, Jugador jugador1, Jugador jugador2) {
         this.jugador1 = jugador1;
         this.jugador2 = jugador2;
@@ -46,6 +46,14 @@ public class ModoClasico {
 
     public int getTurnoActual() {
         return turnoActual;
+    }
+
+    public Jugador getJugador(int numero) {
+        return numero == 1 ? jugador1 : jugador2;
+    }
+
+    public TableroMatriz getTablero(int numero) {
+        return numero == 1 ? tablero1 : tablero2;
     }
 
     public Jugador getJugador1() {

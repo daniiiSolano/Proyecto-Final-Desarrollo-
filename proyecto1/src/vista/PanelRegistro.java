@@ -1,9 +1,9 @@
-
 package vista;
 
 import apoyo.BotonImagen;
 import apoyo.CampoClave;
 import apoyo.CampoTexto;
+import apoyo.Imagenes;
 import apoyo.PanelConFondo;
 import apoyo.PanelImagen;
 import apoyo.Recursos;
@@ -247,14 +247,10 @@ public class PanelRegistro extends PanelConFondo {
         for (int i = 0; i < PASOS; i++) {
             boolean hecho = i < n;
 
-            String ruta = hecho
-                    ? "imagenes/check_on.png"
-                    : "imagenes/check_off.png";
-
-            ImageIcon icono = new ImageIcon(ruta);
+            ImageIcon icono = Imagenes.icono(hecho ? RutasLogin.CHECK_ON : RutasLogin.CHECK_OFF);
 
             indicadores[i].setIcon(icono);
-            indicadores[i].setText("");
+            indicadores[i].setText(icono == null ? (hecho ? "●" : "○") : "");
         }
     }
 

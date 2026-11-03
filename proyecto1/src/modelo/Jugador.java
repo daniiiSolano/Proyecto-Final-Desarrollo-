@@ -1,9 +1,6 @@
-
-package Modelo;
+package modelo;
 
 public class Jugador {
-
-//atributos
 
     private final String nombre;
     private int intentos;
@@ -12,20 +9,28 @@ public class Jugador {
     private int partidasGanadas;
     private int parejasEncontradas;
 
-//metodos
+    public Jugador(String nombre) {
+        this(nombre, 0, 0.0, 0, 0, 0.0);
+    }
+
+    public Jugador(String nombre, int intentos, double premio) {
+        this(nombre, intentos, 0.0, 0, 0, premio);
+    }
 
     public Jugador(String nombre, int intentos, double puntos,
                    int partidasGanadas, int parejasEncontradas,
                    double premioAcumulado) {
-
         this.nombre = nombre;
         this.intentos = intentos;
         this.puntos = puntos;
-        this.partidasGanadas = 0; // los 3 inician en cero en cada partida
-        this.parejasEncontradas = 0;
-        this.premioAcumulado = 0;
+        this.partidasGanadas = partidasGanadas;
+        this.parejasEncontradas = parejasEncontradas;
+        this.premioAcumulado = premioAcumulado;
     }
-// Gests y set
+
+    public String getNombre() {
+        return nombre;
+    }
 
     public String getUser() {
         return nombre;
@@ -71,7 +76,14 @@ public class Jugador {
         this.premioAcumulado = premioAcumulado;
     }
 
-    //
+    public double getPremio() {
+        return premioAcumulado;
+    }
+
+    public void setPremio(double premio) {
+        this.premioAcumulado = premio;
+    }
+
     public void incrementarIntentos() {
         this.intentos++;
     }
@@ -88,10 +100,9 @@ public class Jugador {
         this.premioAcumulado += monto;
     }
 
-    public void reiniciarPartida() {    // Reinicia los datos, conserva las partidas ganadas y los premios
+    public void reiniciarPartida() {
         this.intentos = 0;
         this.puntos = 0;
         this.parejasEncontradas = 0;
     }
-
 }

@@ -72,7 +72,7 @@ public class PanelIniciarSesion extends PanelConFondo {
 
     private BotonImagen crearPestana(String texto, String vista) {
         BotonImagen b = new BotonImagen(texto, RutasLogin.PESTANA_INACTIVA, null);
-        b.setFont(Recursos.fuente(Font.BOLD, 22));
+        b.setFont(Recursos.fuente(Font.BOLD, 19));
         b.addActionListener(e -> mostrarVista(vista));
         return b;
     }
@@ -84,8 +84,8 @@ public class PanelIniciarSesion extends PanelConFondo {
         pestanaCredenciales.setImagenes(rostro ? RutasLogin.PESTANA_INACTIVA : RutasLogin.PESTANA_ACTIVA, null);
         pestanaRostro.setColorTextoSobreImagen(rostro ? Recursos.CREMA : Recursos.TEXTO);
         pestanaCredenciales.setColorTextoSobreImagen(rostro ? Recursos.TEXTO : Recursos.CREMA);
-        pestanaRostro.setFont(Recursos.fuente(rostro ? Font.BOLD : Font.PLAIN, 22));
-        pestanaCredenciales.setFont(Recursos.fuente(rostro ? Font.PLAIN : Font.BOLD, 22));
+        pestanaRostro.setFont(Recursos.fuente(rostro ? Font.BOLD : Font.PLAIN, 19));
+        pestanaCredenciales.setFont(Recursos.fuente(rostro ? Font.PLAIN : Font.BOLD, 19));
     }
 
     private JPanel crearVistaRostro() {

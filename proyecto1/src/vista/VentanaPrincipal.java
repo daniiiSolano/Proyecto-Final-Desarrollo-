@@ -1,8 +1,6 @@
 package vista;
 
-import apoyo.BotonImagen;
 import apoyo.Recursos;
-import apoyo.RutasLogin;
 import controlador.JuegoController;
 import hilos.HiloAnimacion;
 
@@ -16,11 +14,11 @@ import java.awt.event.WindowEvent;
 public class VentanaPrincipal extends JFrame {
 
     public static final String LOGIN = "login";
+    public static final String REGISTRO = "registro";
     public static final String HISTORIA = "historia";
     public static final String CLASICO = "clasico";
     public static final String PATRON = "patron";
     public static final String PREMIOS = "premios";
-    public static final String REGISTRO = "registro";
 
     private static final String[] PANTALLAS = {LOGIN, HISTORIA, CLASICO, PATRON, PREMIOS};
     private static final String[] NOMBRES_PESTANAS =
@@ -29,16 +27,14 @@ public class VentanaPrincipal extends JFrame {
     private final JuegoController controller;
 
     private PanelIniciarSesion panelIniciarSesion;
+    private PanelRegistro panelRegistro;
     private PanelHistoria panelHistoria;
     private PanelModoClasico panelModoClasico;
     private PanelModoPatron panelModoPatron;
     private PanelPremios panelPremios;
-    private PanelRegistro panelRegistro;
 
     private Recursos.BotonBosque[] pestanas;
     private Recursos.BotonBosque btnMusica;
-    private JLabel lblUsuario;
-    private BotonImagen btnCerrarSesion;
     private CardLayout cardLayout;
     private JPanel contenedor;
 
@@ -65,11 +61,11 @@ public class VentanaPrincipal extends JFrame {
         setMinimumSize(new Dimension(Math.min(1100, ancho), Math.min(680, alto)));
 
         panelIniciarSesion = new PanelIniciarSesion(controller);
+        panelRegistro = new PanelRegistro(controller);
         panelHistoria = new PanelHistoria(controller);
         panelModoClasico = new PanelModoClasico(controller);
         panelModoPatron = new PanelModoPatron(controller);
         panelPremios = new PanelPremios(controller);
-        panelRegistro = new PanelRegistro(controller);
 
         // --- Barra superior: pestañas + botón de música ---
         JPanel barra = new JPanel(new BorderLayout(10, 0));
@@ -84,33 +80,29 @@ public class VentanaPrincipal extends JFrame {
             pestanas[i] = Recursos.crearBoton(NOMBRES_PESTANAS[i]);
             pestanas[i].setFont(Recursos.fuente(Font.BOLD, 17));
             pestanas[i].setMargin(new Insets(8, 6, 8, 6));
-            pestanas[i].addActionListener(evt -> controller.irA(pantalla));
+            pestanas[i].addActionListener(evt -> {
+                if (!controller.haySesion() && !LOGIN.equals(pantalla)) {
+                    mostrarMensaje("Debes iniciar sesión para poder jugar.");
+                    return;
+                }
+                mostrarPantalla(pantalla);
+            });
             panelPestanas.add(pestanas[i]);
         }
         btnMusica = Recursos.crearBoton("Música: OFF", Recursos.CAFE);
         btnMusica.setFont(Recursos.fuente(Font.BOLD, 16));
         btnMusica.addActionListener(evt -> controller.alternarMusica());
-        lblUsuario = Recursos.crearEtiqueta("", 18, true, Recursos.CREMA);
-        btnCerrarSesion = new BotonImagen("Cerrar sesión", RutasLogin.BOTON_CAFE, RutasLogin.BOTON_CAFE_PRES);
-        btnCerrarSesion.setFont(Recursos.fuente(Font.BOLD, 16));
-        btnCerrarSesion.setPreferredSize(new Dimension(160, 40));
-        btnCerrarSesion.addActionListener(evt -> controller.cerrarSesion());
-        JPanel derecha = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        derecha.setOpaque(false);
-        derecha.add(lblUsuario);
-        derecha.add(btnCerrarSesion);
-        derecha.add(btnMusica);
         barra.add(panelPestanas, BorderLayout.CENTER);
-        barra.add(derecha, BorderLayout.EAST);
+        barra.add(btnMusica, BorderLayout.EAST);
 
         cardLayout = new CardLayout();
         contenedor = new JPanel(cardLayout);
         contenedor.add(panelIniciarSesion, LOGIN);
+        contenedor.add(panelRegistro, REGISTRO);
         contenedor.add(panelHistoria, HISTORIA);
         contenedor.add(panelModoClasico, CLASICO);
         contenedor.add(panelModoPatron, PATRON);
         contenedor.add(panelPremios, PREMIOS);
-        contenedor.add(panelRegistro, REGISTRO);
 
         add(barra, BorderLayout.NORTH);
         add(contenedor, BorderLayout.CENTER);
@@ -127,7 +119,6 @@ public class VentanaPrincipal extends JFrame {
             }
         });
 
-        actualizarSesion(false, "");
         mostrarPantalla(LOGIN);
         setLocationRelativeTo(null);
     }
@@ -135,28 +126,25 @@ public class VentanaPrincipal extends JFrame {
         cardLayout.show(contenedor, nombrePantalla);
         for (int i = 0; i < PANTALLAS.length; i++) {
             boolean activa = PANTALLAS[i].equals(nombrePantalla)
-                    || (REGISTRO.equals(nombrePantalla) && LOGIN.equals(PANTALLAS[i]));
+                    || (i == 0 && REGISTRO.equals(nombrePantalla));
             pestanas[i].setColorFondo(activa ? Recursos.VERDE : Recursos.CREMA_OSCURO);
             pestanas[i].setForeground(activa ? Recursos.CREMA : Recursos.TEXTO);
         }
         if (!HISTORIA.equals(nombrePantalla)) {
             panelHistoria.detenerAnimacion();
         }
-    }
-
-    /** Sin sesión solo la pestaña de login está disponible; con sesión, todas menos el login. */
-    public void actualizarSesion(boolean activa, String usuario) {
-        for (int i = 0; i < PANTALLAS.length; i++) {
-            pestanas[i].setEnabled(activa != LOGIN.equals(PANTALLAS[i]));
+        if (PREMIOS.equals(nombrePantalla) && !controller.hayTipoCambio()) {
+            controller.consultarTipoCambio();
         }
-        lblUsuario.setText(activa ? "Jugador: " + usuario : "");
-        lblUsuario.setVisible(activa);
-        btnCerrarSesion.setVisible(activa);
     }
 
     public void limpiarFormularios() {
         panelIniciarSesion.limpiar();
         panelRegistro.limpiar();
+    }
+
+    public void actualizarPremios() {
+        panelPremios.refrescar();
     }
 
     public void actualizarBotonMusica(boolean sonando) {

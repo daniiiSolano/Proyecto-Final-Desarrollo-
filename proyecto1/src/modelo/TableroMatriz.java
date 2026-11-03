@@ -1,6 +1,4 @@
-package Modelo;
-
-import Modelo.Casillas;
+package modelo;
 
 public class TableroMatriz {
 
@@ -31,5 +29,21 @@ public class TableroMatriz {
             }
         }
         return rutas;
+    }
+
+    public int contarParejasEncontradas() {
+        int emparejadas = 0;
+        for (int f = 0; f < FILAS; f++) {
+            for (int c = 0; c < COLUMNAS; c++) {
+                if (matriz[f][c].isEmparejada()) {
+                    emparejadas++;
+                }
+            }
+        }
+        return emparejadas / 2;
+    }
+
+    public boolean todasLasParejasEncontradas() {
+        return contarParejasEncontradas() == PAREJAS;
     }
 }

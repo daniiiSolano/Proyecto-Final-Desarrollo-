@@ -1,5 +1,4 @@
-
-package Modelo;
+package modelo;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -7,19 +6,18 @@ import java.util.Random;
 
 public class ModoPatron {
 
-    public static final int longitudInicial = 3;
-    public static final int tiempo = 12;
-    public static final int tiempoEntreCasillas = 2;
-    private modelo.TableroMatriz tablero;
+    public static final int LONGITUD_INICIAL = 3;
+    public static final int TIEMPO_TOTAL_SEG = 12;
+    public static final int TIEMPO_ENTRE_CASILLAS_SEG = 2;
+    private TableroMatriz tablero;
     private int nivel;
     private boolean juegoFinalizado;
     private ArrayList<int[]> secuenciaCorrecta; //guarda las coordenadas
     private int pasoActual; //en q paso de la secuencia va
-    private int longitudPatron = longitudInicial;
 
 
     //metodos
-    public ModoPatron(modelo.TableroMatriz tablero, int nivel, boolean juegoFinalizado, ArrayList<int[]> secuenciaCorrecta, int pasoActual) {
+    public ModoPatron(TableroMatriz tablero, int nivel, boolean juegoFinalizado, ArrayList<int[]> secuenciaCorrecta, int pasoActual) {
         this.tablero = tablero;
         this.nivel = nivel;
         this.juegoFinalizado = juegoFinalizado;
@@ -36,7 +34,7 @@ public class ModoPatron {
         return juegoFinalizado;
     }
 
-    public modelo.TableroMatriz getTablero() {
+    public TableroMatriz getTablero() {
         return tablero;
     }
 
@@ -57,7 +55,7 @@ public class ModoPatron {
         Random random = new Random(); // Genera aleatoriamente
         secuenciaCorrecta.clear();
 
-        int cantidadPasos = nivel + 2;
+        int cantidadPasos = getLongitudPatron();
         for (int i = 0; i < cantidadPasos; i++) {
             int fila = random.nextInt(6); // Entre 0 y 5 para la matriz 6x6
             int columna = random.nextInt(6);
@@ -67,7 +65,7 @@ public class ModoPatron {
     }
 
     public boolean verificarPaso(int filaSeleccionada, int columnaSeleccionada) {    // Verifica si la casilla presionada por el usuario coincide con la secuencia
-        if (juegoFinalizado) return false;
+        if (juegoFinalizado || secuenciaCorrecta.isEmpty()) return false;
 
         int[] pasoEsperado = secuenciaCorrecta.get(pasoActual);
 
@@ -95,7 +93,7 @@ public class ModoPatron {
     }
 
     public int getLongitudPatron() {
-        return longitudPatron;
+        return nivel + LONGITUD_INICIAL - 1;
     }
 
     //  este constructor para q no falle

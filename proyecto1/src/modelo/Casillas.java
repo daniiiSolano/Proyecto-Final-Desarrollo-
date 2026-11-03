@@ -1,5 +1,4 @@
-
-package Modelo;
+package modelo;
 
 import apoyo.Recursos;
 
@@ -18,7 +17,7 @@ public class Casillas {
 
     public Casillas(int idObjeto) {
         this.idObjeto = idObjeto;
-        this.icon = icon;
+        this.icon = Recursos.rutaObjeto(idObjeto);
     }
 
 // get n set
