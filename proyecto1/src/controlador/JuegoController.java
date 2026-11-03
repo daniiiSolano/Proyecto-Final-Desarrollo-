@@ -1,18 +1,28 @@
 package controlador;
 
+import apoyo.CamaraWebCam;
 import apoyo.Recursos;
 import hilos.HiloSonido;
 import modelo.AutenticadorFacial;
 import modelo.GestorPremios;
+import modelo.GestorUsuarios;
 import modelo.Jugador;
 import modelo.LibroHistoria;
 import modelo.ModoClasico;
 import modelo.ModoPatron;
 import modelo.TableroMatriz;
+import modelo.Usuario;
 import vista.VentanaPrincipal;
 
 import java.io.File;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.IntConsumer;
+import javax.swing.SwingWorker;
 
 public class JuegoController {
 
@@ -20,9 +30,19 @@ public class JuegoController {
     private final ModoPatron modoPatron;
     private final LibroHistoria libro;
     private final GestorPremios gestorPremios;
-    private final AutenticadorFacial autenticador;
+    private AutenticadorFacial autenticador;
+    private CamaraWebCam camara;
+    private volatile String errorFacial;
+    private boolean ocupadoFacial = false;
+    private final ExecutorService hiloCamara = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "ControlCamara");
+        t.setDaemon(true);
+        return t;
+    });
+    private final GestorUsuarios gestorUsuarios;
 
     private Jugador jugadorActual;
+    private Usuario usuarioActual;
     private VentanaPrincipal vista;
     private HiloSonido tareaSonido;
     private Thread hiloSonido;
@@ -32,7 +52,7 @@ public class JuegoController {
         modoPatron = new ModoPatron();
         libro = new LibroHistoria();
         gestorPremios = new GestorPremios();
-        autenticador = new AutenticadorFacial();
+        gestorUsuarios = new GestorUsuarios("datos/usuarios.dat");
     }
 
     public void setVista(VentanaPrincipal vista) {
@@ -46,6 +66,11 @@ public class JuegoController {
     }
 
     public void irA(String pantalla) {
+        boolean libre = VentanaPrincipal.LOGIN.equals(pantalla) || VentanaPrincipal.REGISTRO.equals(pantalla);
+        if (!libre && !haySesion()) {
+            vista.mostrarMensaje("Debes iniciar sesión o registrarte para poder jugar.");
+            return;
+        }
         vista.mostrarPantalla(pantalla);
     }
 
@@ -54,32 +79,212 @@ public class JuegoController {
     }
 
     public void volverAlInicio() {
-        libro.reiniciar();
-        vista.reiniciarHistoria();
-        vista.mostrarPantalla(VentanaPrincipal.LOGIN);
+        cerrarSesion();
     }
 
     public String getEstadoCamara() {
-        return autenticador.getEstadoCamara();
-    }
-
-    public void iniciarSesionDemo(String nombre) {
-        String usuario = (nombre == null || nombre.trim().isEmpty()) ? "Invitado" : nombre.trim();
-        jugadorActual = new Jugador(usuario);
-        vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
-    }
-
-    public void registrarRostroDemo(String nombre) {
-        if (nombre == null || nombre.trim().isEmpty()) {
-            vista.mostrarMensaje("Escribe un nombre de usuario para registrar tu rostro.");
-            return;
+        if (errorFacial != null) {
+            return "Cámara no disponible";
         }
-        jugadorActual = new Jugador(nombre.trim());
-        vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
+        CamaraWebCam c = camara;
+        return c == null ? "Cámara apagada" : c.getEstado();
+    }
+
+    public BufferedImage getFotogramaCamara() {
+        CamaraWebCam c = camara;
+        return c == null ? null : c.getFotograma();
+    }
+
+    /** Las pantallas con vista de cámara piden/sueltan la webcam; se ordena en un solo hilo. */
+    public void usarCamara() {
+        hiloCamara.submit(() -> {
+            if (facialDisponible()) {
+                camara.usar();
+            }
+        });
+    }
+
+    public void soltarCamara() {
+        hiloCamara.submit(() -> {
+            CamaraWebCam c = camara;
+            if (c != null) {
+                c.soltar();
+            }
+        });
+    }
+
+    private synchronized boolean facialDisponible() {
+        if (autenticador != null) {
+            return true;
+        }
+        if (errorFacial != null) {
+            return false;
+        }
+        try {
+            camara = new CamaraWebCam();
+            autenticador = new AutenticadorFacial(camara);
+            return true;
+        } catch (LinkageError e) {
+            errorFacial = "Falta la librería JavaCV (o sus archivos nativos) en lib/: " + e.getMessage();
+        } catch (RuntimeException e) {
+            errorFacial = e.getMessage();
+        }
+        camara = null;
+        autenticador = null;
+        return false;
+    }
+
+    private static String mensajeDe(Exception e) {
+        Throwable causa = e.getCause() != null ? e.getCause() : e;
+        return causa.getMessage() != null ? causa.getMessage() : "Ocurrió un error con la cámara.";
+    }
+
+    public boolean haySesion() {
+        return usuarioActual != null;
     }
 
     public String getNombreUsuarioActual() {
-        return jugadorActual == null ? "" : jugadorActual.getNombre();
+        return usuarioActual == null ? "" : usuarioActual.getUsuario();
+    }
+
+    public void iniciarSesionConCredenciales(String identificador, char[] clave) {
+        if (identificador == null || identificador.trim().isEmpty() || clave.length == 0) {
+            vista.mostrarMensaje("Escribe tu correo o usuario y tu contraseña.");
+            Arrays.fill(clave, '\0');
+            return;
+        }
+        Usuario u = gestorUsuarios.autenticar(identificador, clave);
+        if (u == null) {
+            vista.mostrarMensaje("Correo/usuario o contraseña incorrectos.");
+            return;
+        }
+        abrirSesion(u);
+    }
+
+    public void iniciarSesionConRostro() {
+        if (gestorUsuarios.estaVacio()) {
+            vista.mostrarMensaje("Aún no hay cuentas registradas. Crea una cuenta primero.");
+            return;
+        }
+        if (ocupadoFacial) {
+            return;
+        }
+        ocupadoFacial = true;
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                if (!facialDisponible()) {
+                    throw new IllegalStateException(errorFacial);
+                }
+                return autenticador.reconocerRostro();
+            }
+
+            @Override
+            protected void done() {
+                ocupadoFacial = false;
+                try {
+                    String usuario = get();
+                    Usuario u = usuario == null ? null : gestorUsuarios.buscarPorUsuario(usuario);
+                    if (u == null) {
+                        vista.mostrarMensaje("No se reconoció tu rostro. Colócate de frente y con buena luz, "
+                                + "o entra con tu correo y contraseña.");
+                    } else {
+                        abrirSesion(u);
+                    }
+                } catch (Exception e) {
+                    vista.mostrarMensaje(mensajeDe(e));
+                }
+            }
+        }.execute();
+    }
+
+    public boolean registrarUsuario(String nombre, String apellido, String correo, String usuario,
+                                    char[] clave, char[] confirmar) {
+        int muestras = autenticador == null ? 0 : autenticador.getTotalMuestras();
+        if (muestras > 0 && muestras < AutenticadorFacial.MUESTRAS_REQUERIDAS) {
+            Arrays.fill(clave, '\0');
+            Arrays.fill(confirmar, '\0');
+            vista.mostrarMensaje("Faltan " + (AutenticadorFacial.MUESTRAS_REQUERIDAS - muestras)
+                    + " captura(s) del rostro. Complétalas o descártalas.");
+            return false;
+        }
+        String error = gestorUsuarios.registrar(nombre, apellido, correo, usuario, clave, confirmar);
+        if (error != null) {
+            vista.mostrarMensaje(error);
+            return false;
+        }
+        if (muestras > 0) {
+            try {
+                autenticador.guardarRostros(usuario.trim());
+            } catch (IOException e) {
+                vista.mostrarMensaje("Tu cuenta se creó, pero no se pudo guardar el rostro: " + e.getMessage());
+            }
+        }
+        vista.limpiarFormularios();
+        vista.mostrarMensaje("¡Cuenta creada! Ahora inicia sesión para jugar.");
+        vista.mostrarPantalla(VentanaPrincipal.LOGIN);
+        return true;
+    }
+
+    /** Un paso del registro facial. Al terminar avisa (en el hilo de Swing) cuántos pasos lleva. */
+    public void capturarMuestraRostro(IntConsumer alTerminar) {
+        if (ocupadoFacial) {
+            alTerminar.accept(autenticador == null ? 0 : autenticador.getTotalMuestras());
+            return;
+        }
+        ocupadoFacial = true;
+        new SwingWorker<Integer, Void>() {
+            @Override
+            protected Integer doInBackground() {
+                if (!facialDisponible()) {
+                    throw new IllegalStateException(errorFacial);
+                }
+                return autenticador.capturarMuestra();
+            }
+
+            @Override
+            protected void done() {
+                ocupadoFacial = false;
+                try {
+                    int n = get();
+                    if (n < 0) {
+                        vista.mostrarMensaje("No se detectó tu rostro. Colócate de frente, con buena luz, "
+                                + "y vuelve a intentarlo.");
+                    }
+                } catch (Exception e) {
+                    vista.mostrarMensaje(mensajeDe(e));
+                }
+                alTerminar.accept(autenticador == null ? 0 : autenticador.getTotalMuestras());
+            }
+        }.execute();
+    }
+
+    public void descartarMuestrasRostro() {
+        if (autenticador != null) {
+            autenticador.limpiarMuestras();
+        }
+    }
+
+    public void recuperarClave() {
+        vista.mostrarMensaje("La recuperación de contraseña por correo aún no está disponible.");
+    }
+
+    public void cerrarSesion() {
+        usuarioActual = null;
+        jugadorActual = null;
+        libro.reiniciar();
+        vista.reiniciarHistoria();
+        vista.limpiarFormularios();
+        vista.actualizarSesion(false, "");
+        vista.mostrarPantalla(VentanaPrincipal.LOGIN);
+    }
+
+    private void abrirSesion(Usuario u) {
+        usuarioActual = u;
+        jugadorActual = new Jugador(u.getUsuario());
+        vista.limpiarFormularios();
+        vista.actualizarSesion(true, u.getUsuario());
+        vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
     }
 
     public int getTotalPaginas() {
