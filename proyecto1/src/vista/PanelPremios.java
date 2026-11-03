@@ -4,7 +4,7 @@ import apoyo.PanelConFondo;
 import apoyo.Recursos;
 import apoyo.Recursos.PanelRedondeado;
 import controlador.JuegoController;
-import Modelo.Jugador;
+import modelo.Jugador;
 
 import javax.swing.*;
 import java.awt.*;

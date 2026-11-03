@@ -1,7 +1,4 @@
-package Modelo;
-
-import Modelo.Jugador;
-import Modelo.TableroMatriz;
+package modelo;
 
 public class ModoClasico {
 

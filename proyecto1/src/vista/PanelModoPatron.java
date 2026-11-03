@@ -27,14 +27,14 @@ public class PanelModoPatron extends PanelConFondo {
 
     private void initComponents() {
         setLayout(new BorderLayout(0, 6));
-        setBorder(BorderFactory.createEmptyBorder(8, 30, 12, 30));
+        setBorder(BorderFactory.createEmptyBorder(4, 30, 8, 30));
 
         JPanel norte = new JPanel(new GridBagLayout());
         norte.setOpaque(false);
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0;
         gc.gridy = 0;
-        norte.add(Recursos.crearBanner("Modo patrones", 42), gc);
+        norte.add(Recursos.crearBanner("Modo patrones", 36), gc);
         gc.gridy = 1;
         gc.insets = new Insets(6, 0, 0, 0);
         norte.add(Recursos.crearSubtitulo("Memoriza el patrón de casillas y repítelo en el mismo orden."), gc);
@@ -47,24 +47,23 @@ public class PanelModoPatron extends PanelConFondo {
         c.fill = GridBagConstraints.BOTH;
         c.weighty = 1;
         c.gridy = 0;
-        c.insets = new Insets(10, 8, 6, 8);
+        c.insets = new Insets(6, 8, 4, 8);
 
         c.gridx = 0;
-        c.weightx = 0.25;
+        c.weightx = 0;
         centro.add(crearPanelIzquierdo(), c);
 
         PanelTablero tablero = new PanelTablero(controller.getFilasTablero(), controller.getColumnasTablero(),
                 Recursos.VERDE);
         tablero.setImagenBase(Recursos.CASILLA_PATRON);
         tablero.setImagenAlterna(Recursos.CASILLA_PATRON_ACTIVA);
-
         tablero.setOyenteCasillas((f, col) -> tablero.marcarCasilla(f, col, !tablero.estaMarcada(f, col)));
         c.gridx = 1;
-        c.weightx = 0.5;
+        c.weightx = 1;
         centro.add(tablero, c);
 
         c.gridx = 2;
-        c.weightx = 0.25;
+        c.weightx = 0;
         centro.add(crearPanelInstrucciones(), c);
         add(centro, BorderLayout.CENTER);
 
@@ -80,51 +79,53 @@ public class PanelModoPatron extends PanelConFondo {
     /** Nivel actual, longitud del patrón y los dos indicadores de tiempo. */
     private JPanel crearPanelIzquierdo() {
         PanelRedondeado panel = new PanelRedondeado(new GridBagLayout(), Recursos.CREMA, Recursos.CAFE, 30);
-        panel.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
-        panel.setPreferredSize(new Dimension(320, 100));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
+        panel.setPreferredSize(new Dimension(360, 100));
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0;
         gc.fill = GridBagConstraints.HORIZONTAL;
         gc.weightx = 1;
-        gc.insets = new Insets(4, 0, 4, 0);
+        gc.insets = new Insets(2, 0, 2, 0);
         int fila = 0;
 
         gc.gridy = fila++;
-        panel.add(centrada("Nivel actual", 26, true), gc);
+        panel.add(centrada("Nivel actual", 22, true), gc);
         PanelRedondeado circulo = new PanelRedondeado(new GridBagLayout(), Recursos.CAFE, Recursos.CAFE_OSCURO, 90);
-        circulo.setPreferredSize(new Dimension(68, 68));
-        circulo.add(Recursos.crearEtiqueta(String.valueOf(controller.getNivelPatron()), 36, true, Recursos.CREMA));
+        Dimension tamCirculo = new Dimension(58, 58);
+        circulo.setPreferredSize(tamCirculo);
+        circulo.setMinimumSize(tamCirculo);   // evita que el círculo se encoja y corte el número
+        circulo.add(Recursos.crearEtiqueta(String.valueOf(controller.getNivelPatron()), 30, true, Recursos.CREMA));
         JPanel envoltorio = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         envoltorio.setOpaque(false);
         envoltorio.add(circulo);
         gc.gridy = fila++;
         panel.add(envoltorio, gc);
 
+        gc.gridy = fila++;
+        gc.insets = new Insets(12, 0, 2, 0);
+        panel.add(centrada("Longitud del patrón", 20, true), gc);
+        gc.gridy = fila++;
+        gc.insets = new Insets(0, 0, 2, 0);
+        panel.add(centrada(controller.getLongitudPatron() + " casillas", 24, false), gc);
 
         gc.gridy = fila++;
-        gc.insets = new Insets(20, 0, 2, 0);
-        panel.add(centrada("Longitud del patrón", 24, true), gc);
-        gc.gridy = fila++;
-        gc.insets = new Insets(0, 0, 4, 0);
-        panel.add(centrada(controller.getLongitudPatron() + " casillas", 30, false), gc);
-
-        gc.gridy = fila++;
-        gc.insets = new Insets(20, 0, 4, 0);
-        panel.add(centrada("Tiempo restante", 24, true), gc);
+        gc.insets = new Insets(12, 0, 2, 0);
+        panel.add(centrada("Tiempo restante", 20, true), gc);
         gc.gridy = fila++;
         gc.insets = new Insets(0, 0, 2, 0);
         panel.add(crearBarra(controller.getTiempoTotalPatron()), gc);
         gc.gridy = fila++;
-        panel.add(centrada(controller.getTiempoTotalPatron() + " segundos", 22, false), gc);
+        panel.add(centrada(controller.getTiempoTotalPatron() + " segundos", 18, false), gc);
 
         gc.gridy = fila++;
-        gc.insets = new Insets(20, 0, 4, 0);
-        panel.add(centrada("Tiempo entre casillas", 24, true), gc);
+        gc.insets = new Insets(12, 0, 2, 0);
+        panel.add(centrada("Tiempo entre casillas", 20, true), gc);
         gc.gridy = fila++;
         gc.insets = new Insets(0, 0, 2, 0);
         panel.add(crearBarra(controller.getTiempoEntreCasillas()), gc);
         gc.gridy = fila++;
-        panel.add(centrada(controller.getTiempoEntreCasillas() + " segundos", 22, false), gc);
+        panel.add(centrada(controller.getTiempoEntreCasillas() + " segundos", 18, false), gc);
+
         gc.gridy = fila;
         gc.weighty = 1;
         gc.fill = GridBagConstraints.BOTH;
@@ -137,7 +138,7 @@ public class PanelModoPatron extends PanelConFondo {
         PanelRedondeado panel = new PanelRedondeado(new BorderLayout(0, 10), Recursos.CREMA, Recursos.CAFE, 30);
         panel.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
         panel.setPreferredSize(new Dimension(360, 100));
-        panel.add(centrada("Instrucciones", 30, true), BorderLayout.NORTH);
+        panel.add(centrada("Instrucciones", 26, true), BorderLayout.NORTH);
 
         JPanel lista = new JPanel(new GridLayout(INSTRUCCIONES.length, 1, 0, 6));
         lista.setOpaque(false);
@@ -147,8 +148,8 @@ public class PanelModoPatron extends PanelConFondo {
 
             PanelRedondeado numero = new PanelRedondeado(new GridBagLayout(), Recursos.VERDE,
                     Recursos.VERDE_OSCURO, 44);
-            numero.setPreferredSize(new Dimension(44, 44));
-            numero.add(Recursos.crearEtiqueta(String.valueOf(i + 1), 22, true, Recursos.CREMA));
+            numero.setPreferredSize(new Dimension(40, 40));
+            numero.add(Recursos.crearEtiqueta(String.valueOf(i + 1), 20, true, Recursos.CREMA));
             JPanel marco = new JPanel(new GridBagLayout());
             marco.setOpaque(false);
             marco.add(numero);
@@ -160,7 +161,7 @@ public class PanelModoPatron extends PanelConFondo {
             texto.setOpaque(false);
             texto.setLineWrap(true);
             texto.setWrapStyleWord(true);
-            texto.setFont(Recursos.fuente(Font.PLAIN, 20));
+            texto.setFont(Recursos.fuente(Font.PLAIN, 18));
             texto.setForeground(Recursos.TEXTO);
             // Se centra verticalmente respecto al círculo numerado
             JPanel marcoTexto = new JPanel(new GridBagLayout());

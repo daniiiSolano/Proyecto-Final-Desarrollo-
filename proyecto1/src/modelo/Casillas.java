@@ -1,4 +1,4 @@
-package Modelo;
+package modelo;
 
 import apoyo.Recursos;
 public class Casillas {

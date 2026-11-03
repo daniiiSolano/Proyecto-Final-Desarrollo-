@@ -1,4 +1,4 @@
-package Modelo;
+package modelo;
 
 import apoyo.Recursos;
 
@@ -76,4 +76,23 @@ public class LibroHistoria {
     public void reiniciar() {
         paginaActual = 0;
     }
+
+    public List<String> getRutasTransicion(int indice) {
+        String prefijo = String.format("transicion_%02d", indice + 1);
+        int cantidad = Recursos.contarSecuencia(Recursos.CARPETA_HISTORIA, prefijo, 0);
+        List<String> rutas = new ArrayList<>();
+        for (int i = 1; i <= cantidad; i++) {
+            rutas.add(Recursos.rutaSecuencia(Recursos.CARPETA_HISTORIA, prefijo, i));
+        }
+        return rutas;
+    }
+    public List<String> getRutasCierre() {
+        int cantidad = Recursos.contarSecuencia(Recursos.CARPETA_HISTORIA, "cierre", 0);
+        List<String> rutas = new ArrayList<>();
+        for (int i = 1; i <= cantidad; i++) {
+            rutas.add(Recursos.rutaSecuencia(Recursos.CARPETA_HISTORIA, "cierre", i));
+        }
+        return rutas;
+    }
 }
+
