@@ -1,4 +1,6 @@
-package modelo;
+package Modelo;
+
+import Modelo.Casillas;
 
 public class TableroMatriz {
 

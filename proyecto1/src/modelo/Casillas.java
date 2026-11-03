@@ -1,16 +1,27 @@
-package modelo;
+
+package Modelo;
 
 import apoyo.Recursos;
+
 public class Casillas {
 
-    public enum Estado { oculta, visible, emparejada }
+// atributos
 
-    private final int idObjeto; // 1..18, corresponde a objeto_01.png ... objeto_18.png
-    private Estado estado = Estado.oculta;
+    public enum Estado { OCULTA, VISIBLE, EMPAREJADA }
+
+    private final int idObjeto;
+    private Estado estado = Estado.OCULTA;
+    private String icon; //ubicacion
+
+
+// metodos
 
     public Casillas(int idObjeto) {
         this.idObjeto = idObjeto;
+        this.icon = icon;
     }
+
+// get n set
 
     public int getIdObjeto() {
         return idObjeto;
@@ -23,7 +34,45 @@ public class Casillas {
     public void setEstado(Estado estado) {
         this.estado = estado;
     }
-    public String getRutaImagen() {
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon;
+    }
+
+//
+
+    // Comprueba si la casilla está visible
+    public boolean isVisible() {
+        return estado == Estado.VISIBLE;
+    }
+
+    // Comprueba si la casilla ya está emparejada
+    public boolean isEmparejada() {
+        return estado == Estado.EMPAREJADA;
+    }
+
+    public void revelar() {// Revela la casilla si todavía está oculta
+        if (estado == Estado.OCULTA) {
+            this.estado = Estado.VISIBLE;
+        }
+    }
+
+    public void ocultar() { // Oculta la casilla cuando la pareja es incorrecta
+
+        if (estado == Estado.VISIBLE) {
+            this.estado = Estado.OCULTA;
+        }
+    }
+
+    public void marcarEmparejada() { // Marca la casilla cuando se encuentra su pareja
+        this.estado = Estado.EMPAREJADA;
+    }
+
+    public String getRutaImagen() { // Obtiene la ruta de la imagen correspondiente
         return Recursos.rutaObjeto(idObjeto);
     }
 }
