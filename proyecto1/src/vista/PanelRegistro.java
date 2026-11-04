@@ -42,11 +42,11 @@ public class PanelRegistro extends PanelConFondo {
 
     private void initComponents() {
         setLayout(new BorderLayout(0, 12));
-        setBorder(BorderFactory.createEmptyBorder(14, 60, 28, 60));
+        setBorder(BorderFactory.createEmptyBorder(8, 60, 10, 60));
 
         JPanel norte = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         norte.setOpaque(false);
-        norte.add(ComponentesLogin.banner("Los Duendes Coleccionistas"));
+        norte.add(ComponentesLogin.banner("Crear cuenta"));
         add(norte, BorderLayout.NORTH);
 
         PanelImagen tarjeta = new PanelImagen(
@@ -58,13 +58,6 @@ public class PanelRegistro extends PanelConFondo {
         tarjeta.setBorder(
                 BorderFactory.createEmptyBorder(20, 44, 16, 44)
         );
-
-        JLabel titulo = Recursos.crearEtiqueta(
-                "Crear cuenta", 34, true, Recursos.CAFE_OSCURO
-        );
-        titulo.setHorizontalAlignment(JLabel.CENTER);
-
-        tarjeta.add(titulo, BorderLayout.NORTH);
 
         JPanel columnas = new JPanel(new GridLayout(1, 2, 40, 0));
         columnas.setOpaque(false);
@@ -142,13 +135,12 @@ public class PanelRegistro extends PanelConFondo {
                 "", 18, true, Recursos.CREMA
         );
 
-        sur.add(ComponentesLogin.centrado(ComponentesLogin.pill(lblPaso)));
-        sur.add(Box.createVerticalStrut(8));
-
+        // El indicador de pasos y los botones van en filas compartidas para dejarle altura a la cámara
         JPanel pasos = new JPanel(
                 new FlowLayout(FlowLayout.CENTER, 10, 0)
         );
         pasos.setOpaque(false);
+        pasos.add(ComponentesLogin.pill(lblPaso));
 
         for (int i = 0; i < PASOS; i++) {
             indicadores[i] = new JLabel("", JLabel.CENTER);
@@ -165,6 +157,7 @@ public class PanelRegistro extends PanelConFondo {
         BotonImagen btnCapturar = ComponentesLogin.botonCafe(
                 "Capturar rostro", 22
         );
+        btnCapturar.setPreferredSize(new Dimension(280, 54));
 
         btnCapturar.addActionListener(e -> {
             btnCapturar.setEnabled(false);
@@ -177,19 +170,24 @@ public class PanelRegistro extends PanelConFondo {
             });
         });
 
-        sur.add(ComponentesLogin.centrado(btnCapturar));
-
-        sur.add(ComponentesLogin.centrado(
+        JPanel acciones = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, 10, 0)
+        );
+        acciones.setOpaque(false);
+        acciones.add(btnCapturar);
+        acciones.add(
                 ComponentesLogin.enlace("Descartar capturas", () -> {
                     controller.descartarMuestrasRostro();
                     actualizarPasos(0);
                 })
-        ));
+        );
+        sur.add(acciones);
+        sur.add(Box.createVerticalStrut(4));
 
         sur.add(ComponentesLogin.texto(
                 "Se toman " + PASOS + " capturas. Es opcional, pero sin rostro "
                         + "solo podrás entrar con contraseña.",
-                18
+                16
         ));
 
         zona.add(sur, BorderLayout.SOUTH);

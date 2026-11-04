@@ -18,6 +18,8 @@ public class PanelPremios extends PanelConFondo {
     private static final int TAMANO_ICONO = 56;
 
     private final JuegoController controller;
+    private PanelRedondeado tarjeta;
+    private JLabel lblCambio;
 
     public PanelPremios(JuegoController controller) {
         super(Recursos.FONDO);
@@ -40,10 +42,10 @@ public class PanelPremios extends PanelConFondo {
         norte.add(Recursos.crearSubtitulo("Los 5 mejores jugadores"), gc);
         add(norte, BorderLayout.NORTH);
 
-        PanelRedondeado tarjeta = new PanelRedondeado(new BorderLayout(0, 6), Recursos.CREMA, Recursos.VERDE_OSCURO, 36);
+        tarjeta = new PanelRedondeado(new BorderLayout(0, 6), Recursos.CREMA, Recursos.VERDE_OSCURO, 36);
         tarjeta.setBorder(BorderFactory.createEmptyBorder(14, 18, 10, 18));
         tarjeta.add(crearTabla(), BorderLayout.CENTER);
-        JLabel lblCambio = Recursos.crearEtiqueta(controller.getTextoTipoCambio(), 18, false, Recursos.TEXTO);
+        lblCambio = Recursos.crearEtiqueta(controller.getTextoTipoCambio(), 18, false, Recursos.TEXTO);
         lblCambio.setHorizontalAlignment(JLabel.CENTER);
         tarjeta.add(lblCambio, BorderLayout.SOUTH);
 
@@ -60,6 +62,15 @@ public class PanelPremios extends PanelConFondo {
         botones.setOpaque(false);
         botones.add(btnVolver);
         add(botones, BorderLayout.SOUTH);
+    }
+
+    public void refrescar() {
+        tarjeta.removeAll();
+        tarjeta.add(crearTabla(), BorderLayout.CENTER);
+        lblCambio.setText(controller.getTextoTipoCambio());
+        tarjeta.add(lblCambio, BorderLayout.SOUTH);
+        tarjeta.revalidate();
+        tarjeta.repaint();
     }
 
     private JPanel crearTabla() {
@@ -86,7 +97,7 @@ public class PanelPremios extends PanelConFondo {
                     crearCeldaMedalla(posicion),
                     crearCeldaJugador(j == null ? "-" : j.getNombre(), Recursos.DUENDES[i]),
                     crearCeldaTexto(j == null ? "-" : String.valueOf(j.getIntentos())),
-                    crearCeldaTexto(j == null ? "-" : String.format(Locale.US, "$ %.2f", j.getPremio()))
+                    crearCeldaTexto(j == null || j.getPremio() <= 0 ? "-" : String.format(Locale.US, "$ %,.2f", j.getPremio()))
             };
             for (int col = 0; col < celdas.length; col++) {
                 celdas[col].setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));

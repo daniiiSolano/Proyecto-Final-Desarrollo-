@@ -210,11 +210,6 @@ public class JuegoController {
         entrar(usuario.trim());
     }
 
-    public void recuperarClave() {
-        vista.mostrarMensaje("La recuperación de contraseña todavía no está disponible. "
-                + "Si la olvidaste, entra con tu rostro o crea una cuenta nueva.");
-    }
-
     public void detenerCamara() {
         descartarMuestrasRostro();
     }

@@ -154,8 +154,6 @@ public class PanelIniciarSesion extends PanelConFondo {
         JPanel opciones = new JPanel(new BorderLayout());
         opciones.setOpaque(false);
         opciones.add(chkMostrar, BorderLayout.WEST);
-        opciones.add(ComponentesLogin.enlace("¿Olvidaste tu contraseña?", controller::recuperarClave),
-                BorderLayout.EAST);
         gc.gridy = 2;
         form.add(opciones, gc);
 
