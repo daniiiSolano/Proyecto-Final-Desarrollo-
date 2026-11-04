@@ -1,10 +1,12 @@
 package vista;
 
+import apoyo.Imagenes;
 import apoyo.PanelImagen;
 import apoyo.Recursos;
 import apoyo.RutasLogin;
 import controlador.JuegoController;
 import hilos.HiloAnimacion;
+import hilos.HiloSonido;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,6 +14,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -21,6 +25,13 @@ public class VentanaPrincipal extends JFrame {
     public static final String CLASICO = "clasico";
     public static final String PATRON = "patron";
     public static final String PREMIOS = "premios";
+
+    // Animación de victoria: los primeros fotogramas son la entrada del trofeo y el resto
+    // es un ciclo que se repite VUELTAS_VICTORIA veces (dura lo mismo que la música).
+    private static final int FOTOGRAMAS_ENTRADA = 8;
+    private static final int VUELTAS_VICTORIA = 2;
+    private static final int RETRASO_VICTORIA_MS = 120;
+    private static final String SONIDO_VICTORIA = Recursos.CARPETA_SONIDOS + "victoria.mp3";
 
     private static final String[] PANTALLAS = {LOGIN, HISTORIA, CLASICO, PATRON, PREMIOS};
     private static final String[] NOMBRES_PESTANAS =
@@ -46,6 +57,9 @@ public class VentanaPrincipal extends JFrame {
     private PanelImagen bannerGanador;  // imagen de fondo del mensaje del ganador
     private HiloAnimacion tareaVictoria;
     private Thread hiloVictoria;
+    private HiloSonido tareaSonidoVictoria;
+    private ImageIcon[] cacheVictoria;      // fotogramas ya escalados (la 2a victoria sale al instante)
+    private Dimension tamanoCacheVictoria;
 
     public VentanaPrincipal(JuegoController controller) {
         this.controller = controller;
@@ -112,6 +126,7 @@ public class VentanaPrincipal extends JFrame {
         add(contenedor, BorderLayout.CENTER);
 
         crearCapaVictoria();
+        precargarFotogramasVictoria();
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -213,24 +228,92 @@ public class VentanaPrincipal extends JFrame {
         bannerGanador.setVisible(hayMensaje);
         int maxAncho = Math.max(300, Math.min(900, getWidth() - 200));
         int maxAlto = Math.max(200, Math.min(600, getHeight() - (hayMensaje ? 320 : 200)));
-        int n = Recursos.contarSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA,
-                Recursos.FOTOGRAMAS_VICTORIA_MINIMOS);
-        ImageIcon[] fotogramas = new ImageIcon[n];
-        int[] retrasos = new int[n];
-        for (int i = 0; i < n; i++) {
-            String ruta = Recursos.rutaSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA, i + 1);
-            fotogramas[i] = Recursos.cargarImagen(ruta, maxAncho, maxAlto, Recursos.CREMA_OSCURO);
-            retrasos[i] = 900;
+        ImageIcon[] cargados = cargarFotogramasVictoria(maxAncho, maxAlto);
+        int n = cargados.length;
+        // Entrada una vez y luego el ciclo repetido (se reutilizan las mismas imágenes)
+        int entrada = Math.min(FOTOGRAMAS_ENTRADA, n - 1);
+        int ciclo = n - entrada;
+        ImageIcon[] fotogramas = new ImageIcon[entrada + ciclo * VUELTAS_VICTORIA];
+        int[] retrasos = new int[fotogramas.length];
+        for (int i = 0; i < fotogramas.length; i++) {
+            fotogramas[i] = i < entrada ? cargados[i] : cargados[entrada + (i - entrada) % ciclo];
+            retrasos[i] = RETRASO_VICTORIA_MS;
         }
         lblVictoria.setIcon(fotogramas[0]);
         capaVictoria.setVisible(true);
+        iniciarSonidoVictoria();
         tareaVictoria = new HiloAnimacion(lblVictoria, fotogramas, retrasos, false,
                 this::detenerAnimacionVictoria);
         hiloVictoria = new Thread(tareaVictoria, "HiloVictoria");
         hiloVictoria.start();
     }
 
+    /** Lee los PNG de la victoria en segundo plano para que al ganar no se congele la pantalla. */
+    private void precargarFotogramasVictoria() {
+        Thread hilo = new Thread(() -> {
+            int n = Recursos.contarSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA,
+                    Recursos.FOTOGRAMAS_VICTORIA_MINIMOS);
+            for (int i = 0; i < n; i++) {
+                Imagenes.cargar(Recursos.rutaSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA, i + 1));
+            }
+        }, "HiloPrecargaVictoria");
+        hilo.setDaemon(true);
+        hilo.start();
+    }
+
+    private ImageIcon[] cargarFotogramasVictoria(int maxAncho, int maxAlto) {
+        Dimension tamano = new Dimension(maxAncho, maxAlto);
+        if (cacheVictoria != null && tamano.equals(tamanoCacheVictoria)) {
+            return cacheVictoria;
+        }
+        int n = Recursos.contarSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA,
+                Recursos.FOTOGRAMAS_VICTORIA_MINIMOS);
+        ImageIcon[] cargados = new ImageIcon[n];
+        for (int i = 0; i < n; i++) {
+            String ruta = Recursos.rutaSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA, i + 1);
+            BufferedImage original = Imagenes.cargar(ruta);
+            if (original == null) {
+                cargados[i] = Recursos.cargarImagen(ruta, maxAncho, maxAlto, Recursos.CREMA_OSCURO);
+                continue;
+            }
+            // Escalado rápido (getScaledInstance con 48 imágenes congelaba la pantalla unos segundos)
+            double factor = Math.min(1.0, Math.min((double) maxAncho / original.getWidth(),
+                    (double) maxAlto / original.getHeight()));
+            int ancho = Math.max(1, (int) (original.getWidth() * factor));
+            int alto = Math.max(1, (int) (original.getHeight() * factor));
+            BufferedImage escalada = new BufferedImage(ancho, alto, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = escalada.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(original, 0, 0, ancho, alto, null);
+            g2.dispose();
+            cargados[i] = new ImageIcon(escalada);
+        }
+        cacheVictoria = cargados;
+        tamanoCacheVictoria = tamano;
+        return cargados;
+    }
+
+    private void iniciarSonidoVictoria() {
+        File archivo = new File(SONIDO_VICTORIA);
+        if (!archivo.exists()) {
+            System.err.println("No se encontró la música de victoria: " + SONIDO_VICTORIA);
+            return;
+        }
+        try {
+            tareaSonidoVictoria = new HiloSonido(archivo);
+            Thread hilo = new Thread(tareaSonidoVictoria, "HiloSonidoVictoria");
+            hilo.setDaemon(true);
+            hilo.start();
+        } catch (LinkageError e) {
+            System.err.println("Falta la librería JLayer (lib/jlayer-1.0.1.jar): " + e);
+        }
+    }
+
     private void detenerAnimacionVictoria() {
+        if (tareaSonidoVictoria != null) { // la música se apaga junto con la animación
+            tareaSonidoVictoria.detener();
+            tareaSonidoVictoria = null;
+        }
         if (tareaVictoria != null) {
             tareaVictoria.detener();
             hiloVictoria.interrupt();
