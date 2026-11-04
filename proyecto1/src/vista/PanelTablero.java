@@ -84,6 +84,24 @@ public class PanelTablero extends JPanel {
         botones[fila][columna].setIcon(iconoDe(fila, columna));
     }
 
+    /** Pone una carta boca arriba (true) o boca abajo (false). */
+    public void mostrarCasilla(int fila, int columna, boolean visible) {
+        int nuevo = visible ? FRENTE : BASE;
+        if (estado[fila][columna] != nuevo) {
+            estado[fila][columna] = nuevo;
+            botones[fila][columna].setIcon(iconoDe(fila, columna));
+        }
+    }
+
+    /** Muestra boca arriba solo las casillas que vienen en true. */
+    public void mostrarCasillas(boolean[][] visibles) {
+        for (int f = 0; f < filas; f++) {
+            for (int c = 0; c < columnas; c++) {
+                mostrarCasilla(f, c, visibles[f][c]);
+            }
+        }
+    }
+
     public void marcarCasilla(int fila, int columna, boolean marcada) {
         estado[fila][columna] = marcada ? ALTERNA : BASE;
         botones[fila][columna].setIcon(iconoDe(fila, columna));
@@ -168,3 +186,4 @@ public class PanelTablero extends JPanel {
         return new Dimension(200, 200);
     }
 }
+

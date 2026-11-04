@@ -64,6 +64,7 @@ public class JuegoController {
 
     public void volverAlMenu() {
         modoPatron.cancelarPartida();
+        modoClasico.cancelarPartida();
         vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
     }
 
@@ -287,8 +288,81 @@ public class JuegoController {
         return modoClasico.getTablero(numeroJugador).getRutasImagenes();
     }
 
+    /** Solo se llama desde el flujo del juego, cuando alguien gana la partida. */
     public void mostrarAnimacionVictoria() {
         vista.mostrarAnimacionVictoria();
+    }
+
+    // ------------------------------------------------------------ modo clásico
+
+    /** Tableros nuevos aleatorios, intentos en cero y turno al jugador 1. */
+    public void iniciarPartidaClasico() {
+        modoClasico.iniciarPartida();
+    }
+
+    public void cancelarPartidaClasico() {
+        modoClasico.cancelarPartida();
+    }
+
+    public boolean isPartidaClasicoEnCurso() {
+        return modoClasico.isEnCurso();
+    }
+
+    public ModoClasico.ResultadoJugada seleccionarCasillaClasico(int numeroJugador, int fila, int columna) {
+        ModoClasico.ResultadoJugada resultado = modoClasico.seleccionarCasilla(numeroJugador, fila, columna);
+        if (resultado == ModoClasico.ResultadoJugada.FIN_PARTIDA && modoClasico.hayGanador()) {
+            mostrarAnimacionVictoria(); // la victoria aparece sola cuando alguien gana
+        }
+        return resultado;
+    }
+
+    /** Voltea las cartas del fallo y cede el turno. Devuelve true si terminó la partida. */
+    public boolean resolverFalloClasico() {
+        boolean termino = modoClasico.resolverFallo();
+        if (termino && modoClasico.hayGanador()) {
+            mostrarAnimacionVictoria();
+        }
+        return termino;
+    }
+
+    /** Descuenta tiempo al jugador en turno. Devuelve true si se le acabó el tiempo. */
+    public boolean actualizarTiempoClasico(long milisegundos) {
+        boolean seAcabo = modoClasico.avanzarTiempo(milisegundos);
+        if (seAcabo && modoClasico.isJuegoFinalizado() && modoClasico.hayGanador()) {
+            mostrarAnimacionVictoria();
+        }
+        return seAcabo;
+    }
+
+    public boolean[][] getCasillasDescubiertasClasico(int numeroJugador) {
+        return modoClasico.getTablero(numeroJugador).getCasillasDescubiertas();
+    }
+
+    public int getTurnoClasico() {
+        return modoClasico.getTurnoActual();
+    }
+
+    public String getTextoTiempoClasico() {
+        long ms = modoClasico.getTiempoRestanteMs();
+        int segundos = (int) Math.ceil(ms / 1000.0);
+        return String.format("%02d:%02d", segundos / 60, segundos % 60);
+    }
+
+    public int getParejasJugador(int numero) {
+        return modoClasico.contarParejas(numero);
+    }
+
+    public boolean jugadorTerminoTablero(int numero) {
+        return modoClasico.todasLasParejasEncontradas(numero);
+    }
+
+    public boolean isPartidaClasicoFinalizada() {
+        return modoClasico.isJuegoFinalizado();
+    }
+
+    /** -1 sin decidir, 0 empate, 1 o 2. */
+    public int getGanadorClasico() {
+        return modoClasico.getGanador();
     }
 
     public int getNivelPatron() {
@@ -439,3 +513,4 @@ public class JuegoController {
         hiloSonido = null;
     }
 }
+

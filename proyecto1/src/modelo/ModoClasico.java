@@ -1,51 +1,105 @@
 package modelo;
 
-import javax.swing.Timer;
-
+/**
+ * Lógica del modo clásico (2 jugadores, cada uno con su propio tablero aleatorio de 6x6).
+ *
+ * Reglas (según el enunciado):
+ *  - Cada jugador tiene 10 segundos para realizar cada jugada (voltear 2 cartas).
+ *  - Si acierta, se le suman 7 segundos al tiempo que le quedaba (el reloj
+ *    sigue corriendo, no se reinicia) y sigue jugando.
+ *  - Si falla, se le cede el turno al contrincante.
+ *  - Gana el jugador que encuentra primero todas las parejas de su tablero:
+ *    en ese momento termina la partida y se muestra la animación de victoria.
+ *
+ * Decisiones tomadas donde el enunciado no especifica:
+ *  - Un intento = voltear dos cartas (acierto o fallo). Si se acaba el tiempo
+ *    de la jugada, cuenta como intento fallido y pasa el turno.
+ *
+ * El modelo no usa Swing: la vista le avisa cuánto tiempo pasó con
+ * {@link #avanzarTiempo(long)}.
+ */
 public class ModoClasico {
 
     public static final int TIEMPO_JUGADA_SEG = 10;
     public static final int BONO_ACIERTO_SEG = 7;
-    private int tiempo;
-    private boolean juegoFinalizado;
-    private final Jugador jugador1;
-    private final Jugador jugador2;
-    private TableroMatriz tablero1 = new TableroMatriz(0);
-    private TableroMatriz tablero2 = new TableroMatriz(7);
-    private int turnoActual = 1; // 1 o 2
+    public static final long TIEMPO_JUGADA_MS = TIEMPO_JUGADA_SEG * 1000L;
+    public static final long BONO_ACIERTO_MS = BONO_ACIERTO_SEG * 1000L;
 
-    private Timer temporizador; // Temporizador para controlar el tiempo de cada turno library
-
-    public ModoClasico(Jugador jugador1, Jugador jugador2) {
-        this(TIEMPO_JUGADA_SEG, false, 1, new TableroMatriz(0), new TableroMatriz(7), jugador1, jugador2);
+    /** Lo que pasó al presionar una carta. */
+    public enum ResultadoJugada {
+        IGNORADO,       // clic no válido (no es su turno, carta ya volteada, partida sin iniciar...)
+        PRIMERA_CARTA,  // se volteó la primera carta de la jugada
+        ACIERTO,        // las dos cartas son pareja: +7 s y sigue el mismo jugador
+        FALLO,          // no son pareja: la vista las muestra un momento y luego llama a resolverFallo()
+        FIN_PARTIDA     // con esta jugada terminó la partida
     }
 
-    public ModoClasico(int tiempo, boolean juegoFinalizado, int turnoActual, TableroMatriz tablero1, TableroMatriz tabblero2, Jugador jugador1, Jugador jugador2) {
+    private int tiempo;               // segundos restantes (se conserva por compatibilidad)
+    private long tiempoRestanteMs;
+    private boolean juegoFinalizado;
+    private boolean enCurso;
+    private boolean esperandoOcultar; // hay dos cartas distintas a la vista esperando voltearse
+    private final Jugador jugador1;
+    private final Jugador jugador2;
+    private TableroMatriz tablero1;
+    private TableroMatriz tablero2;
+    private int turnoActual = 1;      // 1 o 2
+    private int ganador = -1;         // -1 sin decidir, 1 o 2 según quién ganó
+
+    private int[] primeraCarta;       // {fila, columna} de la primera carta de la jugada
+    private int[] segundaCarta;
+
+    public ModoClasico(Jugador jugador1, Jugador jugador2) {
+        this(TIEMPO_JUGADA_SEG, false, 1, null, null, jugador1, jugador2);
+        crearTablerosAleatorios();
+    }
+
+    public ModoClasico(int tiempo, boolean juegoFinalizado, int turnoActual, TableroMatriz tablero1,
+                       TableroMatriz tabblero2, Jugador jugador1, Jugador jugador2) {
         this.jugador1 = jugador1;
         this.jugador2 = jugador2;
-        this.tiempo = 10;
-        this.juegoFinalizado = false; // al inicio debe ir falso y después cambia
+        this.tiempo = tiempo;
+        this.tiempoRestanteMs = tiempo * 1000L;
+        this.juegoFinalizado = juegoFinalizado;
         this.turnoActual = turnoActual;
         this.tablero1 = tablero1;
         this.tablero2 = tabblero2;
-        this.temporizador = null;
     }
 
-    // get n set
+    // ---------------------------------------------------------------- getters
+
     public int getTiempo() {
         return tiempo;
     }
 
     public void setTiempo(int tiempo) {
         this.tiempo = tiempo;
+        this.tiempoRestanteMs = tiempo * 1000L;
+    }
+
+    public long getTiempoRestanteMs() {
+        return tiempoRestanteMs;
     }
 
     public boolean isJuegoFinalizado() {
         return juegoFinalizado;
     }
 
+    public boolean isEnCurso() {
+        return enCurso;
+    }
+
+    public boolean isEsperandoOcultar() {
+        return esperandoOcultar;
+    }
+
     public int getTurnoActual() {
         return turnoActual;
+    }
+
+    /** -1 si aún no termina, 1 o 2 según el jugador que ganó. */
+    public int getGanador() {
+        return ganador;
     }
 
     public Jugador getJugador(int numero) {
@@ -72,151 +126,229 @@ public class ModoClasico {
         return tablero2;
     }
 
-// LOGIC
+    // ---------------------------------------------------------------- partida
 
-    public void iniciarPartida() {// Prepara una nueva partida con el tiempo y el turno
-
-
-        this.juegoFinalizado = false; // Indica que la partida está activa
-        this.tiempo = 10; // Establece el tiempo inicial en 10 segundos
-        this.turnoActual = 1; // El jugador 1 comienza la partida
+    /** Tableros nuevos (aleatorios y distintos entre sí), contadores en cero y turno al jugador 1. */
+    public void iniciarPartida() {
+        crearTablerosAleatorios();
+        jugador1.reiniciarPartida();
+        jugador2.reiniciarPartida();
+        this.juegoFinalizado = false;
+        this.enCurso = true;
+        this.esperandoOcultar = false;
+        this.ganador = -1;
+        this.turnoActual = 1;
+        this.primeraCarta = null;
+        this.segundaCarta = null;
+        reiniciarTiempo();
     }
 
-
-    // Verifica si dos casillas forman una pareja y tecibe las dos casillas que fueron seleccionadas
-    public boolean verificarPareja(Casillas c1, Casillas c2) {
-
-        if (c1 == null || c2 == null) { // Comprueba que ninguna de las casillas esté vacía
-
-            return false; // Si alguna es null, no existe una pareja válida
-        }
-
-        if (c1 == c2) { // Comprueba que no se haya seleccionado dos veces la misma casilla
-
-            return false;
-        }
-
-        if (!c1.isVisible() || !c2.isVisible()) { // Comprueba que ambas casillas estén visibles
-
-            return false;
-        }
-
-        if (c1.isEmparejada() || c2.isEmparejada()) { // Comprueba que ninguna casilla ya esté emparejada
-
-            return false;
-        }
-
-        // Compara si son iguales, las casillas forman una pareja
-        return c1.getIcon() != null
-                && c1.getIcon().equals(c2.getIcon());
+    /** Detiene la partida sin ganador (por ejemplo, si el jugador sale de la pantalla). */
+    public void cancelarPartida() {
+        crearTablerosAleatorios();
+        jugador1.reiniciarPartida();
+        jugador2.reiniciarPartida();
+        this.enCurso = false;
+        this.juegoFinalizado = false;
+        this.esperandoOcultar = false;
+        this.ganador = -1;
+        this.turnoActual = 1;
+        this.primeraCarta = null;
+        this.segundaCarta = null;
+        reiniciarTiempo();
     }
 
-
-    public void cambiarTurno() {// Cambia el turno del jugador actual
-
-
-        // Si el turno es 1, cambia a 2 y si es 2, cambia a 1
-        this.turnoActual = (this.turnoActual == 1) ? 2 : 1;
-
-        // Reinicia el reloj a 10 segundos para el siguiente jugador
-        this.tiempo = 10;
-
-        detenerTiempo(); // Detiene el temporizador anterior
-        iniciarTemporalizador(); // Inicia el temporizador del nuevo turno
+    private void crearTablerosAleatorios() {
+        tablero1 = new TableroMatriz();
+        do {
+            tablero2 = new TableroMatriz();
+        } while (tablero2.mismoAcomodo(tablero1)); // el aleatorio de cada jugador debe ser distinto
     }
 
-
-    // Inicia el temporizador que controla los 10 segundos de cada turno
-    public void iniciarTemporalizador() {
-
-        detenerTiempo(); // Evita que existan dos temporizadores funcionando
-
-        // Comprueba que la partida todavía esta activada
-        if (juegoFinalizado) {
-            return; // Sale del método si la partida ya termina
+    /**
+     * El jugador {@code numeroJugador} presionó la carta (fila, columna) de SU tablero.
+     */
+    public ResultadoJugada seleccionarCasilla(int numeroJugador, int fila, int columna) {
+        if (!enCurso || juegoFinalizado || esperandoOcultar || numeroJugador != turnoActual) {
+            return ResultadoJugada.IGNORADO;
+        }
+        TableroMatriz tablero = getTablero(numeroJugador);
+        Casillas casilla = tablero.getCasilla(fila, columna);
+        if (casilla.isVisible() || casilla.isEmparejada()) {
+            return ResultadoJugada.IGNORADO; // ya está boca arriba
         }
 
-        // Crea un temporizador que ejecuta actualizarTiempo() cada segundo.
-        // 1000 milisegundos equivalen a 1 segundo.
-        temporizador = new Timer(1000, e -> actualizarTiempo());
+        casilla.revelar();
 
-        temporizador.start(); // Pone en funcionamiento el temporizador.
+        if (primeraCarta == null) {
+            primeraCarta = new int[]{fila, columna};
+            return ResultadoJugada.PRIMERA_CARTA;
+        }
+
+        // Segunda carta: se compara la pareja
+        segundaCarta = new int[]{fila, columna};
+        Jugador jugador = getJugador(numeroJugador);
+        jugador.incrementarIntentos();
+        Casillas c1 = tablero.getCasilla(primeraCarta[0], primeraCarta[1]);
+
+        if (verificarPareja(c1, casilla)) {
+            c1.marcarEmparejada();
+            casilla.marcarEmparejada();
+            jugador.incrementarParejasEncontradas();
+            primeraCarta = null;
+            segundaCarta = null;
+            sumarTiempo(BONO_ACIERTO_MS);
+
+            if (evaluarFin()) { // encontró todas sus parejas: gana
+                return ResultadoJugada.FIN_PARTIDA;
+            }
+            return ResultadoJugada.ACIERTO;
+        }
+
+        // No son pareja: se quedan a la vista hasta que la vista llame a resolverFallo()
+        esperandoOcultar = true;
+        return ResultadoJugada.FALLO;
     }
 
-
-    // Actualiza el tiempo restante cada segundo
-    public void actualizarTiempo() {
-
-        if (tiempo > 0) { // Comprueba que todavía quede tiempo
-            tiempo--; // Reduce el tiempo en un Segundo
+    /**
+     * Voltea de nuevo las dos cartas del fallo y cede el turno.
+     *
+     * @return true si con este fallo terminó la partida.
+     */
+    public boolean resolverFallo() {
+        if (!esperandoOcultar) {
+            return juegoFinalizado;
         }
-
-
-        if (tiempo <= 0) {// Comprueba si el tiempo llegó a cero
-
-            detenerTiempo(); // Detiene el reloj actual
-
-            // Cuando termina el tiempo, se cambia el turno
-            cambiarTurno();
+        ocultarCartasDeLaJugada();
+        esperandoOcultar = false;
+        if (evaluarFin()) {
+            return true;
         }
-    }
-
-
-    public void detenerTiempo() {
-
-        // Comprueba queel temporizador activo
-        if (temporizador != null) {
-
-            temporizador.stop(); // Detiene el temporizador
-            temporizador = null; // Libera la referencia al temporizado
-        }
-    }
-
-
-    // Comprueba si todas las parejas de un jugador fueron encontradas.
-    public boolean todasLasParejasEncontradas(int numeroJugador) {
-
-        // Si el número es 1, consulta el tablero del jugador 1
-        if (numeroJugador == 1) {
-            return tablero1.todasLasParejasEncontradas();
-
-            // Si el número es 2, consulta el tablero del jugador 2
-        } else if (numeroJugador == 2) {
-            return tablero2.todasLasParejasEncontradas();
-        }
-
-        // Si el número no corresponde a ningun jugador, devuelve false
+        cambiarTurno();
         return false;
     }
 
+    /**
+     * Descuenta tiempo al jugador en turno. Si se le acaba, la jugada cuenta como
+     * intento fallido y el turno pasa al contrincante.
+     *
+     * @return true si se acabó el tiempo (cambió el turno o terminó la partida).
+     */
+    public boolean avanzarTiempo(long milisegundos) {
+        if (!enCurso || juegoFinalizado || esperandoOcultar || milisegundos <= 0) {
+            return false; // mientras se muestran las cartas del fallo el reloj se pausa
+        }
+        tiempoRestanteMs = Math.max(0, tiempoRestanteMs - milisegundos);
+        tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0);
+        if (tiempoRestanteMs > 0) {
+            return false;
+        }
+        // Se acabó el tiempo de la jugada
+        ocultarCartasDeLaJugada();
+        getJugador(turnoActual).incrementarIntentos();
+        if (!evaluarFin()) {
+            cambiarTurno();
+        }
+        return true;
+    }
+
+    // Verifica si dos casillas forman una pareja
+    public boolean verificarPareja(Casillas c1, Casillas c2) {
+        if (c1 == null || c2 == null) {
+            return false;
+        }
+        if (c1 == c2) { // la misma casilla dos veces
+            return false;
+        }
+        if (!c1.isVisible() || !c2.isVisible()) {
+            return false;
+        }
+        if (c1.isEmparejada() || c2.isEmparejada()) {
+            return false;
+        }
+        return c1.getIdObjeto() == c2.getIdObjeto();
+    }
+
+    /** Cede el turno al contrincante, con 10 segundos nuevos. */
+    public void cambiarTurno() {
+        turnoActual = (turnoActual == 1) ? 2 : 1;
+        reiniciarTiempo();
+    }
+
+    private void ocultarCartasDeLaJugada() {
+        TableroMatriz tablero = getTablero(turnoActual);
+        if (primeraCarta != null) {
+            tablero.getCasilla(primeraCarta[0], primeraCarta[1]).ocultar();
+        }
+        if (segundaCarta != null) {
+            tablero.getCasilla(segundaCarta[0], segundaCarta[1]).ocultar();
+        }
+        primeraCarta = null;
+        segundaCarta = null;
+    }
+
+    private void reiniciarTiempo() {
+        tiempoRestanteMs = TIEMPO_JUGADA_MS;
+        tiempo = TIEMPO_JUGADA_SEG;
+    }
+
+    private void sumarTiempo(long ms) {
+        tiempoRestanteMs += ms;
+        tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0);
+    }
+
+    /**
+     * Revisa si algún jugador ya encontró todas sus parejas. El primero que
+     * completa su tablero gana la partida.
+     */
+    private boolean evaluarFin() {
+        if (todasLasParejasEncontradas(1)) {
+            ganador = 1;
+        } else if (todasLasParejasEncontradas(2)) {
+            ganador = 2;
+        } else {
+            return false;
+        }
+        finalizarPartida();
+        return true;
+    }
+
+    // Comprueba si todas las parejas de un jugador fueron encontradas.
+    public boolean todasLasParejasEncontradas(int numeroJugador) {
+        if (numeroJugador == 1) {
+            return tablero1.todasLasParejasEncontradas();
+        } else if (numeroJugador == 2) {
+            return tablero2.todasLasParejasEncontradas();
+        }
+        return false;
+    }
 
     // Cuenta las parejas encontradas por cada jugador
     public int contarParejas(int numeroJugador) {
-
-        // Consulta cuántas parejas encontró el jugador 1
         if (numeroJugador == 1) {
             return tablero1.contarParejasEncontradas();
-
-            // Consulta cuántas parejas encontró el jugador 2
         } else if (numeroJugador == 2) {
             return tablero2.contarParejasEncontradas();
         }
-
-        // Si el número no es válido, devuelve cero
         return 0;
     }
 
     public boolean hayGanador() {
-        // Devuelve true si el jugador 1 o el jugador 2 encontro todas las parejas.
-        return todasLasParejasEncontradas(1) || todasLasParejasEncontradas(2);
+        return ganador == 1 || ganador == 2;
     }
 
-
-    // Finaliza la partida y detiene el temporizador
+    // Finaliza la partida
     public void finalizarPartida() {
-        this.juegoFinalizado = true; // Indica que la partida termino
-        detenerTiempo(); // Evita que el reloj siga corriendo
+        this.juegoFinalizado = true;
+        this.enCurso = false;
+        this.esperandoOcultar = false;
+        if (ganador == 1) {
+            jugador1.incrementarPartidasGanadas();
+        } else if (ganador == 2) {
+            jugador2.incrementarPartidasGanadas();
+        }
     }
-
 }
+
+
 
