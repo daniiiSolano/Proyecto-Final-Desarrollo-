@@ -19,6 +19,13 @@
 *.tar.gz
 *.rar
 
+# Librerías necesarias para compilar: sí se suben al repositorio
+!proyecto1/lib/*.jar
+!proyecto1/javacv-libs/*.jar
+
+# Cuentas y rostros de cada computadora: no se suben
+proyecto1/datos/
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
