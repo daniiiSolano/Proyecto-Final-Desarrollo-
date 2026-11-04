@@ -1,8 +1,13 @@
 package vista;
 
+import apoyo.BotonImagen;
+import apoyo.CampoTexto;
+import apoyo.Imagenes;
 import apoyo.PanelConFondo;
+import apoyo.PanelImagen;
 import apoyo.Recursos;
 import apoyo.Recursos.PanelRedondeado;
+import apoyo.RutasLogin;
 import controlador.JuegoController;
 import modelo.ModoClasico;
 
@@ -10,6 +15,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.KeyEvent;
 
 public class PanelModoClasico extends PanelConFondo {
 
@@ -17,8 +23,14 @@ public class PanelModoClasico extends PanelConFondo {
     private static final int INTERVALO_CRONOMETRO_MS = 100;
     private static final String TEXTO_INICIAL = "¡Encuentra todas las parejas!";
 
+    // Imagen de fondo de la ventana de nombres (dentro de recursos/imagenes/).
+    // Si no existe, se usa el fondo del juego.
+    private static final String FONDO_VENTANA_NOMBRES = "clasico/ventana_nombres.png";
+    private static final int LARGO_MAXIMO_NOMBRE = 15;
+
     private final JuegoController controller;
     private final PanelTablero[] tableros = new PanelTablero[2];
+    private final JLabel[] lblNombres = new JLabel[2];
     private final JLabel[] lblIntentos = new JLabel[2];
     private final JLabel[] lblRelojes = new JLabel[2];
     private JLabel lblEstado;
@@ -105,6 +117,11 @@ public class PanelModoClasico extends PanelConFondo {
     // =================================================================== flujo del juego
 
     private void iniciarPartida() {
+        // Si se presiona "Reiniciar" a media partida se conservan los nombres;
+        // al iniciar o al jugar de nuevo se piden en la ventana.
+        if (!controller.isPartidaClasicoEnCurso() && !pedirNombres()) {
+            return; // el usuario canceló con Esc
+        }
         detenerTemporizadores();
         controller.iniciarPartidaClasico();
         // Cada partida trae tableros aleatorios nuevos: se recargan las imágenes
@@ -196,6 +213,108 @@ public class PanelModoClasico extends PanelConFondo {
         refrescarTodo();
     }
 
+    // =================================================================== ventana de nombres
+
+    /**
+     * Ventana pequeña (modal) para escribir el nombre del Jugador 1 y del Jugador 2.
+     * Todo su aspecto sale de imágenes: fondo, banner, tarjeta, campos y botón.
+     * Devuelve true si se presionó "Confirmar" (o Enter) y false si se cerró con Esc.
+     */
+    private boolean pedirNombres() {
+        Window dueno = SwingUtilities.getWindowAncestor(this);
+        JDialog ventana = new JDialog(dueno, "Nombres de los jugadores", Dialog.ModalityType.APPLICATION_MODAL);
+        ventana.setUndecorated(true);
+
+        // Fondo: imagen temática (o el fondo del juego si todavía no se agrega la imagen)
+        String rutaFondo = Imagenes.cargar(FONDO_VENTANA_NOMBRES) != null ? FONDO_VENTANA_NOMBRES : "fondo.png";
+        PanelImagen fondo = new PanelImagen(rutaFondo, new GridBagLayout(), new Dimension(640, 400))
+                .respaldo(Recursos.CAFE);
+        fondo.setPreferredSize(new Dimension(640, 400));
+        fondo.setBorder(BorderFactory.createLineBorder(Recursos.CAFE_OSCURO, 4));
+
+        // Título sobre la imagen del banner café
+        PanelImagen banner = new PanelImagen(RutasLogin.BANNER, new GridBagLayout(), new Dimension(430, 64))
+                .respaldo(Recursos.CAFE);
+        banner.setPreferredSize(new Dimension(430, 64));
+        banner.add(Recursos.crearEtiqueta("Ingrese los nombres", 30, true, Recursos.CREMA));
+
+        // Tarjeta crema con los dos campos
+        CampoTexto campo1 = crearCampoNombre(1);
+        CampoTexto campo2 = crearCampoNombre(2);
+        PanelImagen tarjeta = new PanelImagen(RutasLogin.TARJETA, new GridBagLayout(), new Dimension(470, 150))
+                .respaldo(Recursos.CREMA);
+        tarjeta.setPreferredSize(new Dimension(470, 150));
+        GridBagConstraints t = new GridBagConstraints();
+        t.insets = new Insets(6, 8, 6, 8);
+        t.anchor = GridBagConstraints.LINE_END;
+        t.gridx = 0;
+        t.gridy = 0;
+        tarjeta.add(Recursos.crearEtiqueta("Jugador 1:", 26, true, Recursos.TEXTO), t);
+        t.gridy = 1;
+        tarjeta.add(Recursos.crearEtiqueta("Jugador 2:", 26, true, Recursos.TEXTO), t);
+        t.anchor = GridBagConstraints.LINE_START;
+        t.gridx = 1;
+        t.gridy = 0;
+        tarjeta.add(campo1, t);
+        t.gridy = 1;
+        tarjeta.add(campo2, t);
+
+        // Botón con la imagen verde del login
+        BotonImagen btnConfirmar = ComponentesLogin.botonVerde("Confirmar", 26);
+        btnConfirmar.setPreferredSize(new Dimension(220, 54));
+
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.gridy = 0;
+        fondo.add(banner, gc);
+        gc.gridy = 1;
+        gc.insets = new Insets(18, 0, 18, 0);
+        fondo.add(tarjeta, gc);
+        gc.gridy = 2;
+        gc.insets = new Insets(0, 0, 0, 0);
+        fondo.add(btnConfirmar, gc);
+
+        final boolean[] confirmado = {false};
+        btnConfirmar.addActionListener(e -> {
+            confirmado[0] = true;
+            ventana.dispose();
+        });
+        campo1.addActionListener(e -> campo2.requestFocusInWindow()); // Enter en el 1 pasa al 2
+        ventana.getRootPane().setDefaultButton(btnConfirmar);            // Enter en el 2 confirma
+        ventana.getRootPane().registerKeyboardAction(e -> ventana.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        ventana.setContentPane(fondo);
+        ventana.pack();
+        ventana.setLocationRelativeTo(dueno);
+        SwingUtilities.invokeLater(campo1::requestFocusInWindow);
+        ventana.setVisible(true); // se queda aquí hasta que la ventana se cierre
+
+        if (confirmado[0]) {
+            controller.setNombresJugadoresClasico(recortar(campo1.getText()), recortar(campo2.getText()));
+            refrescarTodo();
+        }
+        return confirmado[0];
+    }
+
+    /** Campo con la imagen del login; trae el nombre anterior si ya se había escrito uno. */
+    private CampoTexto crearCampoNombre(int numero) {
+        CampoTexto campo = new CampoTexto(RutasLogin.CAMPO);
+        campo.setPreferredSize(new Dimension(250, 48));
+        String actual = nombre(numero);
+        if (!actual.equals("Jugador " + numero)) {
+            campo.setText(actual);
+        }
+        campo.setToolTipText("Máximo " + LARGO_MAXIMO_NOMBRE + " letras. Si lo dejas vacío queda \"Jugador "
+                + numero + "\".");
+        return campo;
+    }
+
+    private String recortar(String texto) {
+        texto = texto.trim();
+        return texto.length() > LARGO_MAXIMO_NOMBRE ? texto.substring(0, LARGO_MAXIMO_NOMBRE) : texto;
+    }
+
     // =================================================================== utilidades
 
     /** Pone toda la pantalla de acuerdo con el estado del modelo. */
@@ -207,6 +326,7 @@ public class PanelModoClasico extends PanelConFondo {
             String texto = "Intentos: " + controller.getIntentosJugador(j)
                     + "  ·  Parejas: " + controller.getParejasJugador(j);
             lblIntentos[j - 1].setText(texto);
+            lblNombres[j - 1].setText(nombre(j));
             boolean esSuTurno = enCurso && turno == j;
             lblRelojes[j - 1].setText(esSuTurno ? controller.getTextoTiempoClasico()
                     : controller.getTextoTiempoInicial());
@@ -268,7 +388,8 @@ public class PanelModoClasico extends PanelConFondo {
 
         JPanel datos = new JPanel(new GridLayout(2, 1));
         datos.setOpaque(false);
-        datos.add(Recursos.crearEtiqueta(controller.getNombreJugador(numero), 24, true, Recursos.TEXTO));
+        lblNombres[numero - 1] = Recursos.crearEtiqueta(controller.getNombreJugador(numero), 24, true, Recursos.TEXTO);
+        datos.add(lblNombres[numero - 1]);
         lblIntentos[numero - 1] = Recursos.crearEtiqueta("Intentos: " + controller.getIntentosJugador(numero),
                 15, false, Recursos.TEXTO);
         datos.add(lblIntentos[numero - 1]);
@@ -316,4 +437,3 @@ public class PanelModoClasico extends PanelConFondo {
         return central;
     }
 }
-

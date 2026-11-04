@@ -290,7 +290,22 @@ public class JuegoController {
 
     /** Solo se llama desde el flujo del juego, cuando alguien gana la partida. */
     public void mostrarAnimacionVictoria() {
-        vista.mostrarAnimacionVictoria();
+        int ganador = modoClasico.getGanador();
+        String mensaje = "¡Ganó el Jugador " + ganador + ": " + getNombreJugador(ganador) + "!";
+        vista.mostrarAnimacionVictoria(mensaje);
+    }
+
+    /** Guarda los nombres escritos en la ventana; si un campo queda vacío se usa "Jugador N". */
+    public void setNombresJugadoresClasico(String nombre1, String nombre2) {
+        modoClasico.getJugador(1).setNombre(limpiarNombre(nombre1, 1));
+        modoClasico.getJugador(2).setNombre(limpiarNombre(nombre2, 2));
+    }
+
+    private String limpiarNombre(String nombre, int numero) {
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return "Jugador " + numero;
+        }
+        return nombre.trim();
     }
 
     // ------------------------------------------------------------ modo clásico

@@ -1,6 +1,8 @@
 package vista;
 
+import apoyo.PanelImagen;
 import apoyo.Recursos;
+import apoyo.RutasLogin;
 import controlador.JuegoController;
 import hilos.HiloAnimacion;
 
@@ -40,6 +42,8 @@ public class VentanaPrincipal extends JFrame {
 
     private JPanel capaVictoria;
     private JLabel lblVictoria;
+    private JLabel lblGanador;          // "¡Ganó el Jugador 1: Ana!"
+    private PanelImagen bannerGanador;  // imagen de fondo del mensaje del ganador
     private HiloAnimacion tareaVictoria;
     private Thread hiloVictoria;
 
@@ -170,11 +174,22 @@ public class VentanaPrincipal extends JFrame {
         capaVictoria.setOpaque(false);
         lblVictoria = new JLabel("", JLabel.CENTER);
         JLabel lblCerrar = Recursos.crearEtiqueta("Haz clic para cerrar", 20, false, Recursos.CREMA);
+
+        // Mensaje con el número y el nombre del ganador, sobre la imagen del banner café
+        lblGanador = Recursos.crearEtiqueta("", 34, true, Recursos.CREMA);
+        bannerGanador = new PanelImagen(RutasLogin.BANNER, new GridBagLayout(), new Dimension(700, 90))
+                .respaldo(Recursos.CAFE);
+        bannerGanador.setBorder(BorderFactory.createEmptyBorder(6, 40, 10, 40));
+        bannerGanador.add(lblGanador);
+
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0;
         gc.gridy = 0;
         capaVictoria.add(lblVictoria, gc);
         gc.gridy = 1;
+        gc.insets = new Insets(6, 0, 0, 0);
+        capaVictoria.add(bannerGanador, gc);
+        gc.gridy = 2;
         gc.insets = new Insets(10, 0, 0, 0);
         capaVictoria.add(lblCerrar, gc);
         capaVictoria.addMouseListener(new MouseAdapter() {
@@ -187,9 +202,17 @@ public class VentanaPrincipal extends JFrame {
         capaVictoria.setVisible(false);
     }
     public void mostrarAnimacionVictoria() {
+        mostrarAnimacionVictoria(null);
+    }
+
+    /** Muestra la animación y, debajo, el mensaje del ganador (si es null o vacío no se muestra). */
+    public void mostrarAnimacionVictoria(String mensajeGanador) {
         detenerAnimacionVictoria();
+        boolean hayMensaje = mensajeGanador != null && !mensajeGanador.isEmpty();
+        lblGanador.setText(hayMensaje ? mensajeGanador : "");
+        bannerGanador.setVisible(hayMensaje);
         int maxAncho = Math.max(300, Math.min(900, getWidth() - 200));
-        int maxAlto = Math.max(200, Math.min(600, getHeight() - 200));
+        int maxAlto = Math.max(200, Math.min(600, getHeight() - (hayMensaje ? 320 : 200)));
         int n = Recursos.contarSecuencia(Recursos.CARPETA_ANIMACIONES, Recursos.PREFIJO_VICTORIA,
                 Recursos.FOTOGRAMAS_VICTORIA_MINIMOS);
         ImageIcon[] fotogramas = new ImageIcon[n];

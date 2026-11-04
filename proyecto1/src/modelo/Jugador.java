@@ -2,7 +2,7 @@ package modelo;
 
 public class Jugador {
 
-    private final String nombre;
+    private String nombre;
     private int intentos;
     private double premioAcumulado;
     private double puntos;
@@ -30,6 +30,11 @@ public class Jugador {
 
     public String getNombre() {
         return nombre;
+    }
+
+    /** Cambia el nombre (se usa en el modo clásico para los nombres que escriben los jugadores). */
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
     }
 
     public String getUser() {

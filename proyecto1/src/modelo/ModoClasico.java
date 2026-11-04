@@ -1,7 +1,6 @@
 package modelo;
 
 // Clase que tiene las reglas del modo clásico (2 jugadores, cada uno con su tablero de 6x6).
-// No usa nada de Swing: la pantalla (PanelModoClasico) le avisa qué carta se presionó
 // y cuánto tiempo ha pasado, y esta clase decide qué pasa en el juego.
 public class ModoClasico {
 
