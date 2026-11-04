@@ -63,6 +63,7 @@ public class JuegoController {
     }
 
     public void volverAlMenu() {
+        modoPatron.cancelarPartida();
         vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
     }
 
@@ -304,6 +305,70 @@ public class JuegoController {
 
     public int getTiempoEntreCasillas() {
         return ModoPatron.TIEMPO_ENTRE_CASILLAS_SEG;
+    }
+
+    // ------------------------------------------------------------ modo patrón
+
+    /** Empieza una partida nueva desde el nivel 1 (patrón de 3 casillas). */
+    public void iniciarPartidaPatron() {
+        modoPatron.iniciarPartida();
+    }
+
+    /** Secuencia {fila, columna} que la vista debe mostrar al jugador. */
+    public List<int[]> getSecuenciaPatron() {
+        return modoPatron.getSecuenciaCorrecta();
+    }
+
+    /** La vista terminó de mostrar el patrón; empiezan a correr los 12 s y los 2 s. */
+    public void comenzarTurnoPatron() {
+        modoPatron.comenzarTurnoJugador();
+    }
+
+    public ModoPatron.ResultadoPaso seleccionarCasillaPatron(int fila, int columna) {
+        return modoPatron.verificarPaso(fila, columna);
+    }
+
+    /** Descuenta tiempo; devuelve true si la partida terminó por tiempo. */
+    public boolean actualizarTiempoPatron(long milisegundos) {
+        return modoPatron.avanzarTiempo(milisegundos);
+    }
+
+    public long getTiempoRestantePatronMs() {
+        return modoPatron.getTiempoRestanteMs();
+    }
+
+    public long getTiempoEntreCasillasRestanteMs() {
+        return modoPatron.getTiempoEntreCasillasRestanteMs();
+    }
+
+    public int getPasoActualPatron() {
+        return modoPatron.getPasoActual();
+    }
+
+    public int[] getPasoEsperadoPatron() {
+        return modoPatron.getPasoEsperado();
+    }
+
+    public boolean isPartidaPatronEnCurso() {
+        ModoPatron.Fase fase = modoPatron.getFase();
+        return fase == ModoPatron.Fase.MOSTRANDO_PATRON || fase == ModoPatron.Fase.TURNO_JUGADOR;
+    }
+
+    public String getMotivoFinPatron() {
+        return modoPatron.getMotivoFin();
+    }
+
+    public int getNivelesSuperadosPatron() {
+        return modoPatron.getNivelesSuperados();
+    }
+
+    public int getMejorNivelPatron() {
+        return modoPatron.getMejorNivel();
+    }
+
+    /** Detiene la partida sin mostrar mensajes (al salir de la pantalla). */
+    public void cancelarPartidaPatron() {
+        modoPatron.cancelarPartida();
     }
 
     public List<Jugador> getTop5() {
