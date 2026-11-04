@@ -1,59 +1,48 @@
 package modelo;
 
-/**
- * Lógica del modo clásico (2 jugadores, cada uno con su propio tablero aleatorio de 6x6).
- *
- * Reglas (según el enunciado):
- *  - Cada jugador tiene 10 segundos para realizar cada jugada (voltear 2 cartas).
- *  - Si acierta, se le suman 7 segundos al tiempo que le quedaba (el reloj
- *    sigue corriendo, no se reinicia) y sigue jugando.
- *  - Si falla, se le cede el turno al contrincante.
- *  - Gana el jugador que encuentra primero todas las parejas de su tablero:
- *    en ese momento termina la partida y se muestra la animación de victoria.
- *
- * Decisiones tomadas donde el enunciado no especifica:
- *  - Un intento = voltear dos cartas (acierto o fallo). Si se acaba el tiempo
- *    de la jugada, cuenta como intento fallido y pasa el turno.
- *
- * El modelo no usa Swing: la vista le avisa cuánto tiempo pasó con
- * {@link #avanzarTiempo(long)}.
- */
+// Clase que tiene las reglas del modo clásico (2 jugadores, cada uno con su tablero de 6x6).
+// No usa nada de Swing: la pantalla (PanelModoClasico) le avisa qué carta se presionó
+// y cuánto tiempo ha pasado, y esta clase decide qué pasa en el juego.
 public class ModoClasico {
 
+    // Constantes del enunciado: 10 segundos por jugada y 7 segundos extra por acierto
     public static final int TIEMPO_JUGADA_SEG = 10;
     public static final int BONO_ACIERTO_SEG = 7;
+    // Los mismos tiempos en milisegundos, porque el reloj se descuenta en ms para que sea más exacto
     public static final long TIEMPO_JUGADA_MS = TIEMPO_JUGADA_SEG * 1000L;
     public static final long BONO_ACIERTO_MS = BONO_ACIERTO_SEG * 1000L;
 
-    /** Lo que pasó al presionar una carta. */
+    // Posibles resultados de presionar una carta. La vista revisa este valor para saber qué mostrar
     public enum ResultadoJugada {
-        IGNORADO,       // clic no válido (no es su turno, carta ya volteada, partida sin iniciar...)
-        PRIMERA_CARTA,  // se volteó la primera carta de la jugada
-        ACIERTO,        // las dos cartas son pareja: +7 s y sigue el mismo jugador
-        FALLO,          // no son pareja: la vista las muestra un momento y luego llama a resolverFallo()
-        FIN_PARTIDA     // con esta jugada terminó la partida
+        IGNORADO,      // el clic no cuenta (no es su turno, la carta ya estaba volteada, etc.)
+        PRIMERA_CARTA, // se volteó la primera carta de la jugada
+        ACIERTO,       // las dos cartas son pareja: se suman 7 s y sigue el mismo jugador
+        FALLO,         // no son pareja: se muestran un momento y después se llama a resolverFallo()
+        FIN_PARTIDA    // con esta jugada el jugador completó su tablero y ganó
     }
 
-    private int tiempo;               // segundos restantes (se conserva por compatibilidad)
-    private long tiempoRestanteMs;
-    private boolean juegoFinalizado;
-    private boolean enCurso;
-    private boolean esperandoOcultar; // hay dos cartas distintas a la vista esperando voltearse
+    private int tiempo;               // segundos que le quedan al jugador en turno
+    private long tiempoRestanteMs;    // lo mismo en milisegundos (es el que se usa para contar)
+    private boolean juegoFinalizado;  // true cuando ya hay ganador
+    private boolean enCurso;          // true mientras se está jugando
+    private boolean esperandoOcultar; // true si hay 2 cartas distintas esperando voltearse
     private final Jugador jugador1;
     private final Jugador jugador2;
-    private TableroMatriz tablero1;
-    private TableroMatriz tablero2;
-    private int turnoActual = 1;      // 1 o 2
-    private int ganador = -1;         // -1 sin decidir, 1 o 2 según quién ganó
+    private TableroMatriz tablero1;   // tablero del jugador 1
+    private TableroMatriz tablero2;   // tablero del jugador 2
+    private int turnoActual = 1;      // 1 o 2, según a quién le toca
+    private int ganador = -1;         // -1 mientras no hay ganador; luego 1 o 2
 
-    private int[] primeraCarta;       // {fila, columna} de la primera carta de la jugada
-    private int[] segundaCarta;
+    private int[] primeraCarta;       // {fila, columna} de la primera carta volteada en la jugada
+    private int[] segundaCarta;       // {fila, columna} de la segunda carta volteada
 
+    // Constructor que usa el controlador: arranca con 10 s, turno del jugador 1 y tableros aleatorios
     public ModoClasico(Jugador jugador1, Jugador jugador2) {
         this(TIEMPO_JUGADA_SEG, false, 1, null, null, jugador1, jugador2);
         crearTablerosAleatorios();
     }
 
+    // Constructor con todos los atributos
     public ModoClasico(int tiempo, boolean juegoFinalizado, int turnoActual, TableroMatriz tablero1,
                        TableroMatriz tabblero2, Jugador jugador1, Jugador jugador2) {
         this.jugador1 = jugador1;
@@ -66,7 +55,7 @@ public class ModoClasico {
         this.tablero2 = tabblero2;
     }
 
-    // ---------------------------------------------------------------- getters
+    // ---------------------------------------------------------------- getters y setters
 
     public int getTiempo() {
         return tiempo;
@@ -97,15 +86,17 @@ public class ModoClasico {
         return turnoActual;
     }
 
-    /** -1 si aún no termina, 1 o 2 según el jugador que ganó. */
+    // Devuelve -1 si la partida no ha terminado, o 1 / 2 según quién ganó
     public int getGanador() {
         return ganador;
     }
 
+    // Devuelve el jugador 1 o el 2 según el número que se le pase
     public Jugador getJugador(int numero) {
         return numero == 1 ? jugador1 : jugador2;
     }
 
+    // Devuelve el tablero del jugador 1 o del 2
     public TableroMatriz getTablero(int numero) {
         return numero == 1 ? tablero1 : tablero2;
     }
@@ -126,9 +117,9 @@ public class ModoClasico {
         return tablero2;
     }
 
-    // ---------------------------------------------------------------- partida
+    // ---------------------------------------------------------------- lógica de la partida
 
-    /** Tableros nuevos (aleatorios y distintos entre sí), contadores en cero y turno al jugador 1. */
+    // Prepara una partida nueva: tableros nuevos, intentos en 0, turno del jugador 1 y 10 segundos
     public void iniciarPartida() {
         crearTablerosAleatorios();
         jugador1.reiniciarPartida();
@@ -143,7 +134,7 @@ public class ModoClasico {
         reiniciarTiempo();
     }
 
-    /** Detiene la partida sin ganador (por ejemplo, si el jugador sale de la pantalla). */
+    // Detiene la partida sin ganador (se usa cuando el jugador sale de la pantalla)
     public void cancelarPartida() {
         crearTablerosAleatorios();
         jugador1.reiniciarPartida();
@@ -158,63 +149,66 @@ public class ModoClasico {
         reiniciarTiempo();
     }
 
+    // Crea los dos tableros aleatorios. El do-while repite el tablero 2 hasta que
+    // quede distinto al tablero 1, porque el enunciado pide que el aleatorio de cada jugador sea distinto
     private void crearTablerosAleatorios() {
         tablero1 = new TableroMatriz();
         do {
             tablero2 = new TableroMatriz();
-        } while (tablero2.mismoAcomodo(tablero1)); // el aleatorio de cada jugador debe ser distinto
+        } while (tablero2.mismoAcomodo(tablero1));
     }
 
-    /**
-     * El jugador {@code numeroJugador} presionó la carta (fila, columna) de SU tablero.
-     */
+    // Se llama cada vez que un jugador presiona una carta de su tablero
     public ResultadoJugada seleccionarCasilla(int numeroJugador, int fila, int columna) {
+        // Si no hay partida, si se están mostrando las cartas de un fallo
+        // o si no es su turno, no se hace nada
         if (!enCurso || juegoFinalizado || esperandoOcultar || numeroJugador != turnoActual) {
             return ResultadoJugada.IGNORADO;
         }
         TableroMatriz tablero = getTablero(numeroJugador);
         Casillas casilla = tablero.getCasilla(fila, columna);
+        // Si la carta ya está boca arriba tampoco cuenta
         if (casilla.isVisible() || casilla.isEmparejada()) {
-            return ResultadoJugada.IGNORADO; // ya está boca arriba
+            return ResultadoJugada.IGNORADO;
         }
 
-        casilla.revelar();
+        casilla.revelar(); // se voltea la carta
 
+        // Si todavía no había primera carta, esta es la primera y se espera la segunda
         if (primeraCarta == null) {
             primeraCarta = new int[]{fila, columna};
             return ResultadoJugada.PRIMERA_CARTA;
         }
 
-        // Segunda carta: se compara la pareja
+        // Si llega aquí es la segunda carta: se cuenta un intento y se comparan las dos
         segundaCarta = new int[]{fila, columna};
         Jugador jugador = getJugador(numeroJugador);
         jugador.incrementarIntentos();
         Casillas c1 = tablero.getCasilla(primeraCarta[0], primeraCarta[1]);
 
         if (verificarPareja(c1, casilla)) {
+            // Es pareja: las dos cartas se quedan boca arriba
             c1.marcarEmparejada();
             casilla.marcarEmparejada();
             jugador.incrementarParejasEncontradas();
             primeraCarta = null;
             segundaCarta = null;
-            sumarTiempo(BONO_ACIERTO_MS);
+            sumarTiempo(BONO_ACIERTO_MS); // +7 segundos al tiempo que le quedaba
 
-            if (evaluarFin()) { // encontró todas sus parejas: gana
+            // Si con esta pareja completó las 18, gana la partida
+            if (evaluarFin()) {
                 return ResultadoJugada.FIN_PARTIDA;
             }
-            return ResultadoJugada.ACIERTO;
+            return ResultadoJugada.ACIERTO; // sigue jugando el mismo jugador
         }
 
-        // No son pareja: se quedan a la vista hasta que la vista llame a resolverFallo()
+        // No es pareja: las cartas se dejan a la vista hasta que la vista llame a resolverFallo()
         esperandoOcultar = true;
         return ResultadoJugada.FALLO;
     }
 
-    /**
-     * Voltea de nuevo las dos cartas del fallo y cede el turno.
-     *
-     * @return true si con este fallo terminó la partida.
-     */
+    // Después de mostrar el fallo un segundo, la vista llama a este método:
+    // voltea de nuevo las dos cartas y le pasa el turno al otro jugador
     public boolean resolverFallo() {
         if (!esperandoOcultar) {
             return juegoFinalizado;
@@ -228,22 +222,21 @@ public class ModoClasico {
         return false;
     }
 
-    /**
-     * Descuenta tiempo al jugador en turno. Si se le acaba, la jugada cuenta como
-     * intento fallido y el turno pasa al contrincante.
-     *
-     * @return true si se acabó el tiempo (cambió el turno o terminó la partida).
-     */
+    // La vista llama a este método varias veces por segundo con los milisegundos que pasaron.
+    // Devuelve true si al jugador se le acabó el tiempo
     public boolean avanzarTiempo(long milisegundos) {
+        // Mientras se muestran las cartas de un fallo el reloj queda en pausa
         if (!enCurso || juegoFinalizado || esperandoOcultar || milisegundos <= 0) {
-            return false; // mientras se muestran las cartas del fallo el reloj se pausa
+            return false;
         }
+        // Math.max evita que el tiempo quede negativo
         tiempoRestanteMs = Math.max(0, tiempoRestanteMs - milisegundos);
-        tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0);
+        tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0); // redondeo hacia arriba
         if (tiempoRestanteMs > 0) {
             return false;
         }
-        // Se acabó el tiempo de la jugada
+        // Se acabó el tiempo: se voltean las cartas que tuviera,
+        // cuenta como intento fallido y pasa el turno
         ocultarCartasDeLaJugada();
         getJugador(turnoActual).incrementarIntentos();
         if (!evaluarFin()) {
@@ -252,29 +245,30 @@ public class ModoClasico {
         return true;
     }
 
-    // Verifica si dos casillas forman una pareja
+    // Revisa si dos casillas forman una pareja
     public boolean verificarPareja(Casillas c1, Casillas c2) {
-        if (c1 == null || c2 == null) {
+        if (c1 == null || c2 == null) { // alguna casilla no existe
             return false;
         }
-        if (c1 == c2) { // la misma casilla dos veces
+        if (c1 == c2) { // es la misma casilla dos veces
             return false;
         }
-        if (!c1.isVisible() || !c2.isVisible()) {
+        if (!c1.isVisible() || !c2.isVisible()) { // las dos tienen que estar volteadas
             return false;
         }
-        if (c1.isEmparejada() || c2.isEmparejada()) {
+        if (c1.isEmparejada() || c2.isEmparejada()) { // ya se habían emparejado antes
             return false;
         }
-        return c1.getIdObjeto() == c2.getIdObjeto();
+        return c1.getIdObjeto() == c2.getIdObjeto(); // son pareja si tienen la misma imagen (mismo id)
     }
 
-    /** Cede el turno al contrincante, con 10 segundos nuevos. */
+    // Le pasa el turno al otro jugador y le da sus 10 segundos
     public void cambiarTurno() {
         turnoActual = (turnoActual == 1) ? 2 : 1;
         reiniciarTiempo();
     }
 
+    // Vuelve a poner boca abajo las cartas de la jugada actual (si había alguna)
     private void ocultarCartasDeLaJugada() {
         TableroMatriz tablero = getTablero(turnoActual);
         if (primeraCarta != null) {
@@ -287,43 +281,43 @@ public class ModoClasico {
         segundaCarta = null;
     }
 
+    // Pone el reloj otra vez en 10 segundos
     private void reiniciarTiempo() {
         tiempoRestanteMs = TIEMPO_JUGADA_MS;
         tiempo = TIEMPO_JUGADA_SEG;
     }
 
+    // Suma tiempo al que le queda al jugador (se usa para el bono de 7 segundos)
     private void sumarTiempo(long ms) {
         tiempoRestanteMs += ms;
         tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0);
     }
 
-    /**
-     * Revisa si algún jugador ya encontró todas sus parejas. El primero que
-     * completa su tablero gana la partida.
-     */
+    // Revisa si algún jugador ya encontró todas sus parejas.
+    // El primero que completa su tablero es el ganador y se termina la partida
     private boolean evaluarFin() {
         if (todasLasParejasEncontradas(1)) {
             ganador = 1;
         } else if (todasLasParejasEncontradas(2)) {
             ganador = 2;
         } else {
-            return false;
+            return false; // nadie ha terminado todavía
         }
         finalizarPartida();
         return true;
     }
 
-    // Comprueba si todas las parejas de un jugador fueron encontradas.
+    // Revisa si un jugador ya encontró las 18 parejas de su tablero
     public boolean todasLasParejasEncontradas(int numeroJugador) {
         if (numeroJugador == 1) {
             return tablero1.todasLasParejasEncontradas();
         } else if (numeroJugador == 2) {
             return tablero2.todasLasParejasEncontradas();
         }
-        return false;
+        return false; // número de jugador no válido
     }
 
-    // Cuenta las parejas encontradas por cada jugador
+    // Cuenta cuántas parejas lleva un jugador
     public int contarParejas(int numeroJugador) {
         if (numeroJugador == 1) {
             return tablero1.contarParejasEncontradas();
@@ -333,11 +327,12 @@ public class ModoClasico {
         return 0;
     }
 
+    // true si la partida ya tiene ganador
     public boolean hayGanador() {
         return ganador == 1 || ganador == 2;
     }
 
-    // Finaliza la partida
+    // Termina la partida y le suma una partida ganada al ganador
     public void finalizarPartida() {
         this.juegoFinalizado = true;
         this.enCurso = false;
@@ -349,6 +344,7 @@ public class ModoClasico {
         }
     }
 }
+
 
 
 
