@@ -4,7 +4,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-/** Campo editable real de Swing con una imagen PNG como fondo. */
 public class CampoTexto extends JTextField {
 
     private final BufferedImage fondo;

@@ -8,10 +8,7 @@ import org.bytedeco.javacv.OpenCVFrameGrabber;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
-/**
- * Webcam real (JavaCV/OpenCV). Se enciende cuando alguna pantalla la necesita (usar) y se apaga
- * cuando nadie la usa (soltar), así la luz de la cámara no queda encendida sin motivo.
- */
+
 public class CamaraWebCam implements ProveedorCamara {
 
     private int usos = 0;

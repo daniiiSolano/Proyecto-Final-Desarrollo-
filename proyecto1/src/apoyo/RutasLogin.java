@@ -1,6 +1,5 @@
 package apoyo;
 
-/** Rutas (dentro de recursos/imagenes/) de todas las imágenes del login y el registro. */
 public final class RutasLogin {
 
     private static final String C = "login/";

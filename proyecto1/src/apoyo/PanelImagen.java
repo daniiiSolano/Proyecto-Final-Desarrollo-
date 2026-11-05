@@ -4,7 +4,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-/** Panel cuyo fondo es una imagen PNG estirada al tamaño del panel. */
 public class PanelImagen extends JPanel {
 
     private final BufferedImage imagen;
@@ -17,7 +16,6 @@ public class PanelImagen extends JPanel {
         setOpaque(false);
     }
 
-    /** Si la imagen no existe, usa un color liso de Swing para que la pantalla siga siendo usable. */
     public PanelImagen respaldo(Color color) {
         if (imagen == null) {
             setOpaque(true);
