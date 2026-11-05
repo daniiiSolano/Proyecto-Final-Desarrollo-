@@ -13,8 +13,10 @@ import java.util.Locale;
 
 public class PanelPremios extends PanelConFondo {
 
-    private static final String[] ENCABEZADOS = {"Posición", "Jugador", "Intentos", "Premio (₡)"};
-    private static final double[] PESOS_COLUMNAS = {0.16, 0.38, 0.20, 0.26};
+    // Premio (USD) = 100 / intentos.  Premio (₡) = fórmula del enunciado: 1/puntaje * 100 * CambioDolar
+    private static final String[] ENCABEZADOS = {"Posición", "Jugador", "Intentos", "Premio (USD)", "Premio (₡)"};
+    private static final double[] PESOS_COLUMNAS = {0.13, 0.31, 0.14, 0.19, 0.23};
+    private static final String TEXTO_LIBRE = "¡Gana una partida para aparecer aquí!";
     private static final int TAMANO_ICONO = 56;
 
     private final JuegoController controller;
@@ -81,7 +83,7 @@ public class PanelPremios extends PanelConFondo {
         for (int col = 0; col < ENCABEZADOS.length; col++) {
             PanelRedondeado cab = new PanelRedondeado(new GridBagLayout(), Recursos.CAFE, Recursos.CAFE_OSCURO, 16);
             cab.setBorder(BorderFactory.createEmptyBorder(4, 6, 6, 6));
-            cab.add(Recursos.crearEtiqueta(ENCABEZADOS[col], 24, true, Recursos.CREMA));
+            cab.add(Recursos.crearEtiqueta(ENCABEZADOS[col], 22, true, Recursos.CREMA));
             gc.gridx = col;
             gc.gridy = 0;
             gc.weightx = PESOS_COLUMNAS[col];
@@ -91,21 +93,45 @@ public class PanelPremios extends PanelConFondo {
         }
         List<Jugador> top = controller.getTop5();
         for (int i = 0; i < 5; i++) {
-            Jugador j = i < top.size() ? top.get(i) : null;
             int posicion = i + 1;
+            gc.gridy = posicion;
+            gc.weighty = 1;
+            gc.insets = new Insets(0, 2, 0, 2);
+
+            if (i >= top.size()) {
+                // Puesto libre: la medalla y un mensaje que ocupa el resto de la fila
+                JComponent medalla = crearCeldaMedalla(posicion);
+                medalla.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));
+                gc.gridx = 0;
+                gc.gridwidth = 1;
+                gc.weightx = PESOS_COLUMNAS[0];
+                tabla.add(medalla, gc);
+
+                JLabel libre = Recursos.crearEtiqueta(TEXTO_LIBRE, 22, false, Recursos.CAFE);
+                libre.setHorizontalAlignment(JLabel.CENTER);
+                libre.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));
+                gc.gridx = 1;
+                gc.gridwidth = ENCABEZADOS.length - 1;
+                gc.weightx = 1 - PESOS_COLUMNAS[0];
+                tabla.add(libre, gc);
+                gc.gridwidth = 1;
+                continue;
+            }
+
+            Jugador j = top.get(i);
+            double premioDolares = 100.0 / j.getIntentos(); // 1/puntaje * 100
             JComponent[] celdas = {
                     crearCeldaMedalla(posicion),
-                    crearCeldaJugador(j == null ? "-" : j.getNombre(), Recursos.DUENDES[i]),
-                    crearCeldaTexto(j == null ? "-" : String.valueOf(j.getIntentos())),
-                    crearCeldaTexto(j == null || j.getPremio() <= 0 ? "-" : String.format(Locale.US, "₡ %,.2f", j.getPremio()))
+                    crearCeldaJugador(j.getNombre(), Recursos.DUENDES[i]),
+                    crearCeldaTexto(String.valueOf(j.getIntentos())),
+                    crearCeldaTexto(String.format(Locale.US, "$ %,.2f", premioDolares)),
+                    // Si el BCCR no respondió todavía, el premio en colones queda en "-"
+                    crearCeldaTexto(j.getPremio() <= 0 ? "-" : String.format(Locale.US, "₡ %,.2f", j.getPremio()))
             };
             for (int col = 0; col < celdas.length; col++) {
                 celdas[col].setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));
                 gc.gridx = col;
-                gc.gridy = posicion;
                 gc.weightx = PESOS_COLUMNAS[col];
-                gc.weighty = 1;
-                gc.insets = new Insets(0, 2, 0, 2);
                 tabla.add(celdas[col], gc);
             }
         }
@@ -141,4 +167,5 @@ public class PanelPremios extends PanelConFondo {
         return etiqueta;
     }
 }
+
 
