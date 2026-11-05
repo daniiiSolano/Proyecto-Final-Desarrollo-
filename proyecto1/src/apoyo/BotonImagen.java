@@ -4,7 +4,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-/** Botón cuyo aspecto es una imagen (normal y presionado); el texto se pinta encima. */
 public class BotonImagen extends JButton {
 
     private BufferedImage normal;

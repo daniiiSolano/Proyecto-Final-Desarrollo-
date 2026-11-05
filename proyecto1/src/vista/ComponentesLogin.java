@@ -10,7 +10,6 @@ import controlador.JuegoController;
 import javax.swing.*;
 import java.awt.*;
 
-/** Piezas compartidas por el login y el registro; todas se muestran con imágenes PNG. */
 final class ComponentesLogin {
 
     private ComponentesLogin() {
@@ -50,7 +49,6 @@ final class ComponentesLogin {
         return b;
     }
 
-    /** Marco de imagen con la webcam en vivo dentro. El estado (opcional) se actualiza solo. */
     static PanelImagen marcoCamara(JuegoController controller, JLabel estado) {
         PanelImagen marco = new PanelImagen(RutasLogin.MARCO_CAMARA, new BorderLayout(), new Dimension(480, 360))
                 .respaldo(new Color(38, 38, 40));

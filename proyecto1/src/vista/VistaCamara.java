@@ -9,7 +9,8 @@ import java.awt.*;
 import java.awt.event.HierarchyEvent;
 import java.awt.image.BufferedImage;
 
-/** Muestra la imagen de la webcam (espejada). Enciende la cámara al verse y la suelta al ocultarse. */
+// Muestra la imagen de la webcam (espejada). Enciende la cámara al verse y la suelta al ocultarse. //
+
 class VistaCamara extends JComponent {
 
     private final JuegoController controller;
