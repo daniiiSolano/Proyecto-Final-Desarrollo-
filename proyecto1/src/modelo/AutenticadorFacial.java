@@ -30,10 +30,6 @@ import static org.bytedeco.opencv.global.opencv_imgproc.cvtColor;
 import static org.bytedeco.opencv.global.opencv_imgproc.equalizeHist;
 import static org.bytedeco.opencv.global.opencv_imgproc.resize;
 
-/**
- * Reconocimiento facial real: detecta el rostro con un clasificador Haar y lo identifica con LBPH (OpenCV).
- * Los rostros registrados se guardan como PNG en datos/rostros/<usuario>/.
- */
 public class AutenticadorFacial {
 
     public static final int MUESTRAS_REQUERIDAS = 3;          // pasos del registro
