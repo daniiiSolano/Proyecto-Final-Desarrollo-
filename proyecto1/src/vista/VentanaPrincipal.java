@@ -177,8 +177,7 @@ public class VentanaPrincipal extends JFrame {
     }
 
     public void mostrarMensaje(String mensaje) {
-        JOptionPane.showMessageDialog(this, mensaje, "Los Duendes Coleccionistas",
-                JOptionPane.INFORMATION_MESSAGE);
+        Recursos.mostrarAviso(this, "Los Duendes Coleccionistas", mensaje);
     }
     private void crearCapaVictoria() {
         capaVictoria = new JPanel(new GridBagLayout()) {

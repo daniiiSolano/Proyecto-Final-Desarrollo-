@@ -293,13 +293,11 @@ public class PanelModoClasico extends PanelConFondo {
             String nombre1 = recortar(campo1.getText());
             String nombre2 = recortar(campo2.getText());
             if (nombre1.isEmpty() || nombre2.isEmpty()) {
-                JOptionPane.showMessageDialog(ventana, "Escriban el nombre de los dos jugadores.",
-                        "Nombres de los jugadores", JOptionPane.WARNING_MESSAGE);
+                Recursos.mostrarAviso(ventana, "Nombres de los jugadores", "Escriban el nombre de los dos jugadores.");
                 return;
             }
             if (nombre1.equalsIgnoreCase(nombre2)) {
-                JOptionPane.showMessageDialog(ventana, "Los dos jugadores deben tener nombres distintos.",
-                        "Nombres de los jugadores", JOptionPane.WARNING_MESSAGE);
+                Recursos.mostrarAviso(ventana, "Nombres de los jugadores", "Los dos jugadores deben tener nombres distintos.");
                 return;
             }
             confirmado[0] = true;

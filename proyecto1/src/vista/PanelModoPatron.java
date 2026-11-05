@@ -260,8 +260,7 @@ public class PanelModoPatron extends PanelConFondo {
                 + "\nMejor resultado de la sesión: " + controller.getMejorNivelPatron() + " niveles"
                 + "\n\nLa casilla iluminada es la que debías presionar.";
         // invokeLater para que el tablero se repinte antes de que aparezca el diálogo
-        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, mensaje,
-                "Fin del juego", JOptionPane.INFORMATION_MESSAGE));
+        SwingUtilities.invokeLater(() -> Recursos.mostrarAviso(this, "Fin del juego", mensaje));
     }
 
     /** Detiene todo y deja la pantalla como al inicio (se usa al salir de la pantalla). */
