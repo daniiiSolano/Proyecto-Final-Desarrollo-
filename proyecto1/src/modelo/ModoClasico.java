@@ -17,7 +17,8 @@ public class ModoClasico {
         PRIMERA_CARTA, // se volteó la primera carta de la jugada
         ACIERTO,       // las dos cartas son pareja: se suman 7 s y sigue el mismo jugador
         FALLO,         // no son pareja: se muestran un momento y después se llama a resolverFallo()
-        FIN_PARTIDA    // con esta jugada el jugador completó su tablero y ganó
+        TABLERO_COMPLETO, // el jugador completó su tablero primero; ahora el rival juega solo
+        FIN_PARTIDA    // con esta jugada se decidió el ganador (o el empate)
     }
 
     private int tiempo;               // segundos que le quedan al jugador en turno
@@ -30,7 +31,13 @@ public class ModoClasico {
     private TableroMatriz tablero1;   // tablero del jugador 1
     private TableroMatriz tablero2;   // tablero del jugador 2
     private int turnoActual = 1;      // 1 o 2, según a quién le toca
-    private int ganador = -1;         // -1 mientras no hay ganador; luego 1 o 2
+    private int ganador = -1;         // -1 mientras no hay ganador; 0 si es empate; luego 1 o 2
+
+    // Enunciado: "Gana el que utilice menos intentos para encontrar las parejas".
+    // Cuando un jugador completa su tablero se anotan sus intentos y el rival sigue jugando solo
+    // hasta que termine su tablero o hasta que llegue a esa misma cantidad de intentos.
+    private int terminoPrimero = 0;   // 0 si nadie ha completado su tablero; luego 1 o 2
+    private int intentosPrimero = -1; // intentos con los que terminó el primero
 
     private int[] primeraCarta;       // {fila, columna} de la primera carta volteada en la jugada
     private int[] segundaCarta;       // {fila, columna} de la segunda carta volteada
@@ -85,9 +92,19 @@ public class ModoClasico {
         return turnoActual;
     }
 
-    // Devuelve -1 si la partida no ha terminado, o 1 / 2 según quién ganó
+    // Devuelve -1 si la partida no ha terminado, 0 si fue empate, o 1 / 2 según quién ganó
     public int getGanador() {
         return ganador;
+    }
+
+    // 0 si nadie ha completado su tablero, o 1 / 2 según quién lo completó primero
+    public int getTerminoPrimero() {
+        return terminoPrimero;
+    }
+
+    // Intentos con los que el primero completó su tablero (-1 si nadie ha terminado)
+    public int getIntentosPrimero() {
+        return intentosPrimero;
     }
 
     // Devuelve el jugador 1 o el 2 según el número que se le pase
@@ -127,6 +144,8 @@ public class ModoClasico {
         this.enCurso = true;
         this.esperandoOcultar = false;
         this.ganador = -1;
+        this.terminoPrimero = 0;
+        this.intentosPrimero = -1;
         this.turnoActual = 1;
         this.primeraCarta = null;
         this.segundaCarta = null;
@@ -142,6 +161,8 @@ public class ModoClasico {
         this.juegoFinalizado = false;
         this.esperandoOcultar = false;
         this.ganador = -1;
+        this.terminoPrimero = 0;
+        this.intentosPrimero = -1;
         this.turnoActual = 1;
         this.primeraCarta = null;
         this.segundaCarta = null;
@@ -194,9 +215,17 @@ public class ModoClasico {
             segundaCarta = null;
             sumarTiempo(BONO_ACIERTO_MS); // +7 segundos al tiempo que le quedaba
 
-            // Si con esta pareja completó las 18, gana la partida
+            // ¿Con esta pareja es el primero en completar las 18?
+            boolean acabaDeTerminar = terminoPrimero == 0 && tablero.todasLasParejasEncontradas();
+            // Se revisa si ya se puede decidir el ganador
             if (evaluarFin()) {
                 return ResultadoJugada.FIN_PARTIDA;
+            }
+            // Terminó primero, pero el rival todavía puede ganarle con menos intentos:
+            // se le pasa el turno al rival, que seguirá jugando solo
+            if (acabaDeTerminar) {
+                cambiarTurno();
+                return ResultadoJugada.TABLERO_COMPLETO;
             }
             return ResultadoJugada.ACIERTO; // sigue jugando el mismo jugador
         }
@@ -261,9 +290,14 @@ public class ModoClasico {
         return c1.getIdObjeto() == c2.getIdObjeto(); // son pareja si tienen la misma imagen (mismo id)
     }
 
-    // Le pasa el turno al otro jugador y le da sus 10 segundos
+    // Le pasa el turno al otro jugador y le da sus 10 segundos.
+    // Si un jugador ya completó su tablero, el turno queda siempre con el rival (juega solo)
     public void cambiarTurno() {
-        turnoActual = (turnoActual == 1) ? 2 : 1;
+        if (terminoPrimero != 0) {
+            turnoActual = (terminoPrimero == 1) ? 2 : 1;
+        } else {
+            turnoActual = (turnoActual == 1) ? 2 : 1;
+        }
         reiniciarTiempo();
     }
 
@@ -292,15 +326,41 @@ public class ModoClasico {
         tiempo = (int) Math.ceil(tiempoRestanteMs / 1000.0);
     }
 
-    // Revisa si algún jugador ya encontró todas sus parejas.
-    // El primero que completa su tablero es el ganador y se termina la partida
+    // Decide si ya hay ganador. Gana el que usa MENOS intentos para encontrar las 18 parejas:
+    // 1. Cuando un jugador completa su tablero se anotan sus intentos.
+    // 2. Si el rival ya tiene igual o más intentos, el rival pierde (ya no puede ganarle).
+    // 3. Si tiene menos, sigue jugando solo hasta que termine su tablero o llegue a esos intentos.
+    // Devuelve true si la partida terminó
     private boolean evaluarFin() {
-        if (todasLasParejasEncontradas(1)) {
-            ganador = 1;
-        } else if (todasLasParejasEncontradas(2)) {
-            ganador = 2;
+        // Paso 1: si nadie había terminado, se revisa si alguien acaba de completar su tablero
+        if (terminoPrimero == 0) {
+            if (todasLasParejasEncontradas(1)) {
+                terminoPrimero = 1;
+            } else if (todasLasParejasEncontradas(2)) {
+                terminoPrimero = 2;
+            } else {
+                return false; // nadie ha terminado todavía
+            }
+            intentosPrimero = getJugador(terminoPrimero).getIntentos(); // se anotan sus intentos
+        }
+
+        int rival = (terminoPrimero == 1) ? 2 : 1;
+        int intentosRival = getJugador(rival).getIntentos();
+
+        if (todasLasParejasEncontradas(rival)) {
+            // El rival también completó su tablero: se comparan los intentos
+            if (intentosRival < intentosPrimero) {
+                ganador = rival;
+            } else if (intentosRival == intentosPrimero) {
+                ganador = 0; // empate
+            } else {
+                ganador = terminoPrimero;
+            }
+        } else if (intentosRival >= intentosPrimero) {
+            // Paso 2: el rival ya no puede terminar con menos intentos (le falta al menos uno más)
+            ganador = terminoPrimero;
         } else {
-            return false; // nadie ha terminado todavía
+            return false; // Paso 3: el rival sigue jugando solo
         }
         finalizarPartida();
         return true;
@@ -343,6 +403,7 @@ public class ModoClasico {
         }
     }
 }
+
 
 
 

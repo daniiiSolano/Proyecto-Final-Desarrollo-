@@ -43,7 +43,7 @@ public class JuegoController {
         modoClasico = new ModoClasico(new Jugador("Jugador 1"), new Jugador("Jugador 2"));
         modoPatron = new ModoPatron();
         libro = new LibroHistoria();
-        gestorPremios = new GestorPremios();
+        gestorPremios = new GestorPremios("datos/premios.txt");
         gestorUsuarios = new GestorUsuarios("datos/usuarios.txt");
     }
 
@@ -114,6 +114,10 @@ public class JuegoController {
 
     private void entrar(String nombreUsuario) {
         jugadorActual = new Jugador(nombreUsuario);
+        // El que inició sesión queda como Jugador 1 del modo clásico (su nombre sale ya escrito
+        // en la ventana de nombres). El Jugador 2 escribe el suyo en esa ventana.
+        modoClasico.getJugador(1).setNombre(nombreUsuario);
+        modoClasico.getJugador(2).setNombre("Jugador 2");
         SwingUtilities.invokeLater(() -> {
             vista.limpiarFormularios();
             vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
@@ -288,10 +292,29 @@ public class JuegoController {
         return modoClasico.getTablero(numeroJugador).getRutasImagenes();
     }
 
-    /** Solo se llama desde el flujo del juego, cuando alguien gana la partida. */
+    /**
+     * Se llama cuando termina la partida del modo clásico: anota al ganador en la tabla de
+     * premios (con sus intentos) y muestra la animación. Si es empate no se anota a nadie,
+     * porque ninguno usó menos intentos que el otro.
+     */
+    private void terminarPartidaClasico() {
+        int ganador = modoClasico.getGanador();
+        if (ganador == 1 || ganador == 2) {
+            gestorPremios.registrarGanador(getNombreJugador(ganador), getIntentosJugador(ganador));
+            vista.actualizarPremios();
+        }
+        mostrarAnimacionVictoria();
+    }
+
+    /** Solo se llama desde el flujo del juego, cuando termina la partida. */
     public void mostrarAnimacionVictoria() {
         int ganador = modoClasico.getGanador();
-        String mensaje = "¡Ganó el Jugador " + ganador + ": " + getNombreJugador(ganador) + "!";
+        String mensaje;
+        if (ganador == 0) {
+            mensaje = "¡Empate con " + getIntentosJugador(1) + " intentos!";
+        } else {
+            mensaje = "¡Ganó " + getNombreJugador(ganador) + " con " + getIntentosJugador(ganador) + " intentos!";
+        }
         vista.mostrarAnimacionVictoria(mensaje);
     }
 
@@ -325,8 +348,8 @@ public class JuegoController {
 
     public ModoClasico.ResultadoJugada seleccionarCasillaClasico(int numeroJugador, int fila, int columna) {
         ModoClasico.ResultadoJugada resultado = modoClasico.seleccionarCasilla(numeroJugador, fila, columna);
-        if (resultado == ModoClasico.ResultadoJugada.FIN_PARTIDA && modoClasico.hayGanador()) {
-            mostrarAnimacionVictoria(); // la victoria aparece sola cuando alguien gana
+        if (resultado == ModoClasico.ResultadoJugada.FIN_PARTIDA) {
+            terminarPartidaClasico(); // se anota al ganador y aparece la animación
         }
         return resultado;
     }
@@ -334,8 +357,8 @@ public class JuegoController {
     /** Voltea las cartas del fallo y cede el turno. Devuelve true si terminó la partida. */
     public boolean resolverFalloClasico() {
         boolean termino = modoClasico.resolverFallo();
-        if (termino && modoClasico.hayGanador()) {
-            mostrarAnimacionVictoria();
+        if (termino && modoClasico.isJuegoFinalizado()) {
+            terminarPartidaClasico();
         }
         return termino;
     }
@@ -343,10 +366,20 @@ public class JuegoController {
     /** Descuenta tiempo al jugador en turno. Devuelve true si se le acabó el tiempo. */
     public boolean actualizarTiempoClasico(long milisegundos) {
         boolean seAcabo = modoClasico.avanzarTiempo(milisegundos);
-        if (seAcabo && modoClasico.isJuegoFinalizado() && modoClasico.hayGanador()) {
-            mostrarAnimacionVictoria();
+        if (seAcabo && modoClasico.isJuegoFinalizado()) {
+            terminarPartidaClasico();
         }
         return seAcabo;
+    }
+
+    /** 0 si nadie ha completado su tablero; si no, 1 o 2 (el que terminó primero). */
+    public int getTerminoPrimeroClasico() {
+        return modoClasico.getTerminoPrimero();
+    }
+
+    /** Intentos con los que el primero completó su tablero. */
+    public int getIntentosPrimeroClasico() {
+        return modoClasico.getIntentosPrimero();
     }
 
     public boolean[][] getCasillasDescubiertasClasico(int numeroJugador) {
@@ -528,4 +561,5 @@ public class JuegoController {
         hiloSonido = null;
     }
 }
+
 

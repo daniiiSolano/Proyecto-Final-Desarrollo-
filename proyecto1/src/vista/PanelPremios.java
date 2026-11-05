@@ -13,7 +13,7 @@ import java.util.Locale;
 
 public class PanelPremios extends PanelConFondo {
 
-    private static final String[] ENCABEZADOS = {"Posición", "Jugador", "Intentos", "Premio (USD)"};
+    private static final String[] ENCABEZADOS = {"Posición", "Jugador", "Intentos", "Premio (₡)"};
     private static final double[] PESOS_COLUMNAS = {0.16, 0.38, 0.20, 0.26};
     private static final int TAMANO_ICONO = 56;
 
@@ -39,7 +39,7 @@ public class PanelPremios extends PanelConFondo {
         norte.add(Recursos.crearBanner("Premios", 42), gc);
         gc.gridy = 1;
         gc.insets = new Insets(6, 0, 0, 0);
-        norte.add(Recursos.crearSubtitulo("Los 5 mejores jugadores"), gc);
+        norte.add(Recursos.crearSubtitulo("Los 5 mejores jugadores del modo clásico"), gc);
         add(norte, BorderLayout.NORTH);
 
         tarjeta = new PanelRedondeado(new BorderLayout(0, 6), Recursos.CREMA, Recursos.VERDE_OSCURO, 36);
@@ -97,7 +97,7 @@ public class PanelPremios extends PanelConFondo {
                     crearCeldaMedalla(posicion),
                     crearCeldaJugador(j == null ? "-" : j.getNombre(), Recursos.DUENDES[i]),
                     crearCeldaTexto(j == null ? "-" : String.valueOf(j.getIntentos())),
-                    crearCeldaTexto(j == null || j.getPremio() <= 0 ? "-" : String.format(Locale.US, "$ %,.2f", j.getPremio()))
+                    crearCeldaTexto(j == null || j.getPremio() <= 0 ? "-" : String.format(Locale.US, "₡ %,.2f", j.getPremio()))
             };
             for (int col = 0; col < celdas.length; col++) {
                 celdas[col].setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));
@@ -141,3 +141,4 @@ public class PanelPremios extends PanelConFondo {
         return etiqueta;
     }
 }
+

@@ -152,7 +152,9 @@ public class VentanaPrincipal extends JFrame {
         if (!HISTORIA.equals(nombrePantalla)) {
             panelHistoria.detenerAnimacion();
         }
-        if (PREMIOS.equals(nombrePantalla) && !controller.hayTipoCambio()) {
+        // Cada vez que se abren los premios se consulta el tipo de cambio actual del BCCR
+        if (PREMIOS.equals(nombrePantalla)) {
+            panelPremios.refrescar();
             controller.consultarTipoCambio();
         }
     }

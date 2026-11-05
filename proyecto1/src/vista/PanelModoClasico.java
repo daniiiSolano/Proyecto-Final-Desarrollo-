@@ -163,8 +163,16 @@ public class PanelModoClasico extends PanelConFondo {
                 lblEstado.setText("¡Pareja! +" + ModoClasico.BONO_ACIERTO_SEG + " segundos para "
                         + nombre(numero) + ". ¡Sigue jugando!");
                 break;
+            case TABLERO_COMPLETO:
+                // Terminó primero, pero el rival todavía puede ganar con menos intentos
+                int rival = numero == 1 ? 2 : 1;
+                lblEstado.setText("¡" + nombre(numero) + " terminó con " + controller.getIntentosPrimeroClasico()
+                        + " intentos! " + nombre(rival) + " sigue solo: debe terminar en menos intentos.");
+                break;
             case FALLO:
-                lblEstado.setText("No son pareja. Turno de " + nombre(numero == 1 ? 2 : 1) + ".");
+                // Si alguien ya terminó su tablero, el rival conserva el turno (juega solo)
+                int siguiente = controller.getTerminoPrimeroClasico() != 0 ? numero : (numero == 1 ? 2 : 1);
+                lblEstado.setText("No son pareja. Turno de " + nombre(siguiente) + ".");
                 pausaFallo = new Timer(MOSTRAR_FALLO_MS, e -> {
                     boolean termino = controller.resolverFalloClasico();
                     ultimoTick = System.nanoTime(); // el reloj estuvo en pausa mientras se veían las cartas
@@ -194,10 +202,15 @@ public class PanelModoClasico extends PanelConFondo {
 
         int ganador = controller.getGanadorClasico();
         if (ganador == 1 || ganador == 2) {
-            lblEstado.setText("¡Ganó " + nombre(ganador) + "! Encontró las 18 parejas en "
-                    + controller.getIntentosJugador(ganador) + " intentos.");
+            lblEstado.setText("¡Ganó " + nombre(ganador) + " con " + controller.getIntentosJugador(ganador)
+                    + " intentos! Ya aparece en Premios.");
             lblTurno.setText("Ganador:");
             lblJugadorTurno.setText(nombre(ganador));
+        } else if (ganador == 0) {
+            lblEstado.setText("¡Empate! Los dos encontraron las 18 parejas en "
+                    + controller.getIntentosJugador(1) + " intentos.");
+            lblTurno.setText("Resultado:");
+            lblJugadorTurno.setText("Empate");
         }
     }
 
@@ -276,6 +289,19 @@ public class PanelModoClasico extends PanelConFondo {
 
         final boolean[] confirmado = {false};
         btnConfirmar.addActionListener(e -> {
+            // Los dos nombres son obligatorios y distintos, porque con ellos se arma la tabla de premios
+            String nombre1 = recortar(campo1.getText());
+            String nombre2 = recortar(campo2.getText());
+            if (nombre1.isEmpty() || nombre2.isEmpty()) {
+                JOptionPane.showMessageDialog(ventana, "Escriban el nombre de los dos jugadores.",
+                        "Nombres de los jugadores", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (nombre1.equalsIgnoreCase(nombre2)) {
+                JOptionPane.showMessageDialog(ventana, "Los dos jugadores deben tener nombres distintos.",
+                        "Nombres de los jugadores", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             confirmado[0] = true;
             ventana.dispose();
         });
@@ -297,7 +323,10 @@ public class PanelModoClasico extends PanelConFondo {
         return confirmado[0];
     }
 
-    /** Campo con la imagen del login; trae el nombre anterior si ya se había escrito uno. */
+    /**
+     * Campo con la imagen del login. El Jugador 1 trae ya escrito el usuario que inició sesión;
+     * si ya se había escrito un nombre antes, también aparece.
+     */
     private CampoTexto crearCampoNombre(int numero) {
         CampoTexto campo = new CampoTexto(RutasLogin.CAMPO);
         campo.setPreferredSize(new Dimension(250, 48));
@@ -305,8 +334,7 @@ public class PanelModoClasico extends PanelConFondo {
         if (!actual.equals("Jugador " + numero)) {
             campo.setText(actual);
         }
-        campo.setToolTipText("Máximo " + LARGO_MAXIMO_NOMBRE + " letras. Si lo dejas vacío queda \"Jugador "
-                + numero + "\".");
+        campo.setToolTipText("Máximo " + LARGO_MAXIMO_NOMBRE + " letras.");
         return campo;
     }
 
@@ -437,3 +465,4 @@ public class PanelModoClasico extends PanelConFondo {
         return central;
     }
 }
+
