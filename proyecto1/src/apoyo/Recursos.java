@@ -46,6 +46,10 @@ public class Recursos {
 
     public static final String AVISO_FONDO = "avisos/fondo_aviso.png";
     private static final int AVISO_ANCHO = 700;
+    // Medidas sobre la imagen original (959 x 679): eje central de la zona crema y
+    // línea donde termina el botón OK (el marco verde inferior empieza en y=650)
+    private static final int AVISO_CENTRO_X = 425;
+    private static final int AVISO_BASE_BOTON_Y = 626;
 
     /**
      * Muestra un aviso con la temática del juego en lugar del JOptionPane estándar.
@@ -53,6 +57,11 @@ public class Recursos {
      * colocan el título, el mensaje y el botón. Si falta la imagen, se usa el JOptionPane normal.
      */
     public static void mostrarAviso(Component padre, String titulo, String mensaje) {
+        // Swing solo debe usarse desde el hilo de eventos; si se llama desde otro hilo se reprograma
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> mostrarAviso(padre, titulo, mensaje));
+            return;
+        }
         BufferedImage fondo = Imagenes.cargar(AVISO_FONDO);
         if (fondo == null) {
             JOptionPane.showMessageDialog(padre, mensaje, titulo, JOptionPane.INFORMATION_MESSAGE);
@@ -83,7 +92,10 @@ public class Recursos {
         }
 
         // Mensaje sobre la zona crema: varias líneas, centrado; la letra se reduce si no cabe
-        Rectangle zona = new Rectangle((int) (60 * e), (int) (222 * e), (int) (740 * e), (int) (318 * e));
+        // La zona crema de la imagen va de x=21 a x=830 (centro en x=425); el mensaje y el botón
+        // se centran sobre ese eje para que queden alineados con el marco.
+        Rectangle zona = new Rectangle((int) Math.round((AVISO_CENTRO_X - 370) * e), (int) (222 * e),
+                (int) Math.round(740 * e), (int) (318 * e));
         String texto = mensaje == null ? "" : mensaje.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         boolean unaLinea = !texto.contains("\n");
         String[] partes = texto.split("\n", 2);
@@ -103,38 +115,49 @@ public class Recursos {
         // Botón OK con la imagen verde del juego
         BotonImagen btnOk = new BotonImagen("OK", RutasLogin.BOTON_VERDE, RutasLogin.BOTON_VERDE_PRES);
         btnOk.setFont(fuente(Font.BOLD, 24));
-        btnOk.setBounds((int) (330 * e), (int) (556 * e), (int) (300 * e), (int) (64 * e));
+        // Centrado horizontal exacto sobre la zona crema y separado del borde inferior del marco
+        int anchoOk = (int) Math.round(300 * e);
+        int altoOk = (int) Math.round(64 * e);
+        int xOk = (int) Math.round(AVISO_CENTRO_X * e) - anchoOk / 2;
+        int yOk = (int) Math.round(AVISO_BASE_BOTON_Y * e) - altoOk;
+        btnOk.setBounds(xOk, yOk, anchoOk, altoOk);
         btnOk.addActionListener(ev -> dialogo.dispose());
 
         panel.add(lblTitulo);
         panel.add(lblMensaje);
         panel.add(btnOk);
 
-        // Como no tiene barra de título, se cierra con Enter/Esc y se mueve arrastrándola
+        // Como no tiene barra de título, se cierra con OK, Enter o Esc. No se puede arrastrar.
         dialogo.setContentPane(panel);
+        dialogo.setResizable(false);
         dialogo.getRootPane().setDefaultButton(btnOk);
         dialogo.getRootPane().registerKeyboardAction(ev -> dialogo.dispose(),
                 KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
-        java.awt.event.MouseAdapter arrastre = new java.awt.event.MouseAdapter() {
-            private Point inicio;
-
-            @Override
-            public void mousePressed(java.awt.event.MouseEvent ev) {
-                inicio = ev.getPoint();
-            }
-
-            @Override
-            public void mouseDragged(java.awt.event.MouseEvent ev) {
-                Point p = dialogo.getLocation();
-                dialogo.setLocation(p.x + ev.getX() - inicio.x, p.y + ev.getY() - inicio.y);
-            }
-        };
-        panel.addMouseListener(arrastre);
-        panel.addMouseMotionListener(arrastre);
 
         dialogo.pack();
-        dialogo.setLocationRelativeTo(padre);
+        // Siempre centrada sobre la ventana principal del juego (aunque el aviso salga de otro diálogo)
+        dialogo.setLocationRelativeTo(ventanaPrincipal(dueno));
+        final Point posicionFija = dialogo.getLocation();
+        // Si el sistema intenta moverla (p. ej. con atajos de teclado), vuelve a su lugar
+        dialogo.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentMoved(java.awt.event.ComponentEvent ev) {
+                if (!dialogo.getLocation().equals(posicionFija)) {
+                    dialogo.setLocation(posicionFija);
+                }
+            }
+        });
+        btnOk.requestFocusInWindow();
         dialogo.setVisible(true);
+    }
+
+    /** Busca la ventana principal (el JFrame) subiendo por los dueños de la ventana dada. */
+    private static Window ventanaPrincipal(Window ventana) {
+        Window actual = ventana;
+        while (actual != null && !(actual instanceof Frame) && actual.getOwner() != null) {
+            actual = actual.getOwner();
+        }
+        return actual;
     }
 
 

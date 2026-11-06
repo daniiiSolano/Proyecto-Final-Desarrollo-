@@ -1,17 +1,32 @@
 package vista;
 
+import apoyo.Imagenes;
 import apoyo.PanelConFondo;
 import apoyo.Recursos;
 import apoyo.Recursos.PanelRedondeado;
+import apoyo.RutasLogin;
 import controlador.JuegoController;
+import javazoom.jl.player.Player;
 import modelo.ModoPatron;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 
 public class PanelModoPatron extends PanelConFondo {
 
@@ -30,6 +45,13 @@ public class PanelModoPatron extends PanelConFondo {
     private static final int DESTELLO_CLIC_MS = 250;
     private static final int PAUSA_ENTRE_NIVELES_MS = 1200;
     private static final int INTERVALO_CRONOMETRO_MS = 50;
+
+    // Animación de derrota: el duende triste cae sobre el tablero mientras caen hojas del bosque
+    private static final int DURACION_DERROTA_MS = 4200;
+    private static final int DESVANECER_DERROTA_MS = 450;
+    private static final int CUADRO_DERROTA_MS = 30;
+    /** Sonido de derrota: recursos/sonidos/perdióJuego.mp3 (se escribe con \u00f3 para que no dependa de la codificación). */
+    private static final String SONIDO_DERROTA = Recursos.CARPETA_SONIDOS + "perdi\u00f3Juego.mp3";
 
     private static final String TEXTO_INICIAL = "Memoriza el patrón de casillas y repítelo en el mismo orden.";
 
@@ -52,6 +74,10 @@ public class PanelModoPatron extends PanelConFondo {
     private Timer pausaNivel;      // espera breve antes de mostrar el patrón del siguiente nivel
     private long ultimoTick;
     private boolean turnoJugador = false;
+
+    private CapaDerrota capaDerrota;          // animación de derrota en curso (o null)
+    private volatile Player sonidoDerrota;    // reproductor del sonido de derrota (o null)
+    private volatile Object turnoSonido;      // identifica la reproducción vigente (para cancelarla a tiempo)
 
     public PanelModoPatron(JuegoController controller) {
         super(Recursos.FONDO);
@@ -132,6 +158,7 @@ public class PanelModoPatron extends PanelConFondo {
 
     /** Botón "Iniciar partida" / "Jugar de nuevo". */
     private void iniciarPartida() {
+        detenerAnimacionDerrota();
         detenerTemporizadores();
         controller.iniciarPartidaPatron();
         btnIniciar.setText("Reiniciar");
@@ -259,12 +286,13 @@ public class PanelModoPatron extends PanelConFondo {
                 + "\nNiveles superados: " + superados
                 + "\nMejor resultado de la sesión: " + controller.getMejorNivelPatron() + " niveles"
                 + "\n\nLa casilla iluminada es la que debías presionar.";
-        // invokeLater para que el tablero se repinte antes de que aparezca el diálogo
-        SwingUtilities.invokeLater(() -> Recursos.mostrarAviso(this, "Fin del juego", mensaje));
+        // Primero la animación de derrota (con su sonido); al terminar aparece el mensaje de siempre
+        mostrarAnimacionDerrota(superados, () -> Recursos.mostrarAviso(this, "Fin del juego", mensaje));
     }
 
     /** Detiene todo y deja la pantalla como al inicio (se usa al salir de la pantalla). */
     private void detenerPartida() {
+        detenerAnimacionDerrota();
         turnoJugador = false;
         detenerTemporizadores();
         controller.cancelarPartidaPatron(); // vuelve al nivel 1 (se conserva el mejor resultado)
@@ -273,6 +301,404 @@ public class PanelModoPatron extends PanelConFondo {
         btnIniciar.setText("Iniciar partida");
         actualizarDatosNivel();
         reiniciarBarras();
+    }
+
+    // =================================================================== animación de derrota
+
+    /**
+     * Muestra la animación de derrota encima de esta pantalla (sin bloquear la aplicación: la
+     * mueve un Timer de Swing) y reproduce perdióJuego.mp3. Al terminar, o si el jugador hace
+     * clic, se quita la animación y se ejecuta alTerminar (el mensaje "Fin del juego").
+     */
+    private void mostrarAnimacionDerrota(int nivelesSuperados, Runnable alTerminar) {
+        detenerAnimacionDerrota();
+        JRootPane raiz = getRootPane();
+        if (raiz == null || !isShowing()) {
+            SwingUtilities.invokeLater(alTerminar);
+            return;
+        }
+        capaDerrota = new CapaDerrota(nivelesSuperados, alTerminar);
+        raiz.getLayeredPane().add(capaDerrota, JLayeredPane.MODAL_LAYER);
+        capaDerrota.iniciar();
+        reproducirSonidoDerrota();
+    }
+
+    /** Quita la animación sin mostrar el mensaje final (al salir de la pantalla o reiniciar). */
+    private void detenerAnimacionDerrota() {
+        if (capaDerrota != null) {
+            capaDerrota.terminar(false);
+        }
+        detenerSonidoDerrota();
+    }
+
+    /** Reproduce una sola vez el sonido de derrota en un hilo aparte. */
+    private void reproducirSonidoDerrota() {
+        detenerSonidoDerrota();
+        File archivo = buscarSonidoDerrota();
+        if (archivo == null) {
+            System.err.println("No se encontró el sonido de derrota: " + SONIDO_DERROTA);
+            return;
+        }
+        final Object turno = new Object();
+        turnoSonido = turno;
+        Thread hilo = new Thread(() -> {
+            try (BufferedInputStream flujo = new BufferedInputStream(new FileInputStream(archivo))) {
+                Player reproductor = new Player(flujo);
+                sonidoDerrota = reproductor;
+                if (turnoSonido != turno) { // se canceló mientras se abría el archivo
+                    reproductor.close();
+                    return;
+                }
+                reproductor.play();
+            } catch (Throwable e) {
+                System.err.println("No se pudo reproducir el sonido de derrota: " + e);
+            }
+        }, "HiloSonidoDerrota");
+        hilo.setDaemon(true);
+        hilo.start();
+    }
+
+    private void detenerSonidoDerrota() {
+        turnoSonido = null;
+        Player reproductor = sonidoDerrota;
+        sonidoDerrota = null;
+        if (reproductor != null) {
+            reproductor.close();
+        }
+    }
+
+    /**
+     * Busca recursos/sonidos/perdióJuego.mp3. Si no está con ese nombre exacto, revisa la carpeta
+     * por si la "ó" quedó guardada de otra forma o cambian mayúsculas y minúsculas.
+     */
+    private static File buscarSonidoDerrota() {
+        File archivo = new File(SONIDO_DERROTA);
+        if (archivo.exists()) {
+            return archivo;
+        }
+        String buscado = Normalizer.normalize(archivo.getName(), Normalizer.Form.NFC);
+        File[] archivos = new File(Recursos.CARPETA_SONIDOS).listFiles();
+        if (archivos != null) {
+            for (File f : archivos) {
+                if (Normalizer.normalize(f.getName(), Normalizer.Form.NFC).equalsIgnoreCase(buscado)) {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Capa transparente que se dibuja sobre esta pantalla con la animación del duende triste. */
+    private final class CapaDerrota extends JComponent {
+
+        private static final int HOJAS = 22;
+
+        private final int nivelesSuperados;
+        private final Runnable alTerminar;
+        private final Timer timer;
+        // Imágenes de la animación (carpeta recursos/imagenes/derrota/)
+        private final BufferedImage banner = Imagenes.cargar(RutasLogin.BANNER);
+        private final BufferedImage duendeTriste = Imagenes.cargar("derrota/duende_triste.png");
+        private final BufferedImage duendeParpadeo = Imagenes.cargar("derrota/duende_parpadeo.png");
+        private final BufferedImage duendeManos = Imagenes.cargar("derrota/duende_manos.png");
+        private final BufferedImage lagrima = Imagenes.cargar("derrota/lagrima.png");
+        private final BufferedImage[] imagenesHojas = {
+                Imagenes.cargar("derrota/hoja_1.png"), Imagenes.cargar("derrota/hoja_2.png"),
+                Imagenes.cargar("derrota/hoja_3.png"), Imagenes.cargar("derrota/hoja_4.png"),
+                Imagenes.cargar("derrota/hoja_5.png")
+        };
+        private final float[] hojaX = new float[HOJAS];
+        private final float[] hojaY = new float[HOJAS];
+        private final float[] hojaVelocidad = new float[HOJAS];
+        private final float[] hojaFase = new float[HOJAS];
+        private final float[] hojaGiro = new float[HOJAS];
+        private final float[] hojaTamano = new float[HOJAS];
+        private final BufferedImage[] hojaImagen = new BufferedImage[HOJAS];
+        private long inicio;
+        private long inicioSalida = -1;   // momento en que empezó a desvanecerse
+        private float opacidad = 1f;      // 1 = visible, 0 = invisible (al desvanecerse)
+        private boolean terminada = false;
+
+        CapaDerrota(int nivelesSuperados, Runnable alTerminar) {
+            this.nivelesSuperados = nivelesSuperados;
+            this.alTerminar = alTerminar;
+            setOpaque(false);
+            setFocusable(true);
+            Random azar = new Random();
+            for (int i = 0; i < HOJAS; i++) {
+                hojaX[i] = azar.nextFloat();
+                hojaY[i] = -azar.nextFloat() * 1.2f;
+                hojaVelocidad[i] = 0.10f + azar.nextFloat() * 0.12f;   // fracción del alto por segundo
+                hojaFase[i] = azar.nextFloat() * 6.28f;
+                hojaGiro[i] = (azar.nextFloat() - 0.5f) * 4f;
+                hojaTamano[i] = 0.7f + azar.nextFloat() * 0.6f;
+                hojaImagen[i] = imagenesHojas[azar.nextInt(imagenesHojas.length)];
+            }
+            // Mientras se ve la animación no se puede tocar el tablero; un clic la adelanta
+            MouseAdapter raton = new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    if (transcurrido() > 700) {
+                        salir();
+                    }
+                }
+            };
+            addMouseListener(raton);
+            addMouseMotionListener(raton);
+            addKeyListener(new KeyAdapter() {
+                @Override
+                public void keyPressed(KeyEvent e) {
+                    e.consume();
+                    if ((e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_ESCAPE
+                            || e.getKeyCode() == KeyEvent.VK_SPACE) && transcurrido() > 700) {
+                        salir();
+                    }
+                }
+            });
+            timer = new Timer(CUADRO_DERROTA_MS, e -> avanzar());
+        }
+
+        void iniciar() {
+            inicio = System.nanoTime();
+            ajustarTamano();
+            timer.start();
+            requestFocusInWindow();
+        }
+
+        private long transcurrido() {
+            return (System.nanoTime() - inicio) / 1_000_000;
+        }
+
+        /** Empieza a desvanecerse (al terminar el tiempo o con un clic). */
+        private void salir() {
+            if (inicioSalida < 0) {
+                inicioSalida = transcurrido();
+            }
+        }
+
+        private void avanzar() {
+            if (!PanelModoPatron.this.isShowing()) {
+                terminar(false);
+                return;
+            }
+            long t = transcurrido();
+            if (t >= DURACION_DERROTA_MS - DESVANECER_DERROTA_MS) {
+                salir();
+            }
+            if (inicioSalida >= 0 && t - inicioSalida >= DESVANECER_DERROTA_MS) {
+                terminar(true);
+                return;
+            }
+            ajustarTamano();
+            repaint();
+        }
+
+        /** La capa cubre exactamente esta pantalla (también si se cambia el tamaño de la ventana). */
+        private void ajustarTamano() {
+            Container padre = getParent();
+            if (padre == null) {
+                return;
+            }
+            Rectangle zona = SwingUtilities.convertRectangle(PanelModoPatron.this,
+                    new Rectangle(0, 0, PanelModoPatron.this.getWidth(), PanelModoPatron.this.getHeight()), padre);
+            if (!zona.equals(getBounds())) {
+                setBounds(zona);
+            }
+        }
+
+        /** Quita la capa; si continuar es true se muestra después el mensaje final. */
+        void terminar(boolean continuar) {
+            if (terminada) {
+                return;
+            }
+            terminada = true;
+            timer.stop();
+            Container padre = getParent();
+            if (padre != null) {
+                Rectangle zona = getBounds();
+                padre.remove(this);
+                padre.repaint(zona.x, zona.y, zona.width, zona.height);
+            }
+            if (capaDerrota == this) {
+                capaDerrota = null;
+            }
+            if (continuar && alTerminar != null) {
+                SwingUtilities.invokeLater(alTerminar);
+            }
+        }
+
+        // ------------------------------------------------------------- dibujo (con imágenes)
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) {
+                return;
+            }
+            long t = transcurrido();   // milisegundos desde que empezó la animación
+            opacidad = 1f;
+            if (inicioSalida >= 0) {
+                opacidad = 1f - Math.min(1f, (t - inicioSalida) / (float) DESVANECER_DERROTA_MS);
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            ponerTransparencia(g2, 1f);
+
+            // 1) Velo café oscuro que aparece poco a poco (0.4 s)
+            float velo = Math.min(1f, t / 400f);
+            g2.setColor(new Color(40, 24, 10, (int) (165 * velo)));
+            g2.fillRect(0, 0, w, h);
+
+            // 2) Hojas que caen
+            dibujarHojas(g2, w, h, t / 1000f);
+
+            // Tamaño según la ventana (todo se agranda o se achica junto)
+            double escala = Math.min(w / 900.0, h / 620.0);
+            escala = Math.max(0.55, Math.min(1.25, escala));
+            int cx = w / 2;
+            int yBanner = (int) (h * 0.56);
+
+            // 3) El duende cae desde arriba con un rebote y luego niega con la cabeza
+            double caida = rebote(Math.min(1.0, Math.max(0.0, (t - 150) / 850.0)));
+            double yDuende = -200 * escala + (yBanner - 100 * escala + 200 * escala) * caida;
+            double giro = 0;
+            if (t > 1000) {
+                double s = (t - 1000) / 1000.0;
+                giro = Math.sin(s * 9) * 0.10 * Math.exp(-s * 0.9) + Math.sin(s * 2.2) * 0.025;
+            }
+            dibujarDuende(g2, cx, yDuende, escala, giro, t);
+
+            // 4) Banner "¡Oh no, perdiste!" que aparece con un pequeño salto
+            double pop = t < 700 ? 0 : Math.min(1.0, (t - 700) / 380.0);
+            if (pop > 0) {
+                double s = pop < 0.7 ? pop / 0.7 * 1.12 : 1.12 - (pop - 0.7) / 0.3 * 0.12;
+                dibujarBanner(g2, cx, yBanner, escala * s);
+            }
+
+            // 5) Textos de abajo, que aparecen poco a poco
+            if (t > 1100) {
+                ponerTransparencia(g2, Math.min(1f, (t - 1100) / 400f));
+                String sub = nivelesSuperados == 1 ? "Superaste 1 nivel" : "Niveles superados: " + nivelesSuperados;
+                textoCentrado(g2, sub, Recursos.fuente(Font.BOLD, (int) (30 * escala)), Recursos.CREMA,
+                        cx, (int) (yBanner + 85 * escala));
+                if (t > 1600) {
+                    textoCentrado(g2, "Los duendes te esperan para intentarlo otra vez",
+                            Recursos.fuente(Font.ITALIC, (int) (22 * escala)), Recursos.CREMA_OSCURO,
+                            cx, (int) (yBanner + 125 * escala));
+                    Font chica = Recursos.fuente(Font.PLAIN, (int) (18 * escala));
+                    int anchoAviso = g2.getFontMetrics(chica).stringWidth("Haz clic para continuar") + (int) (36 * escala);
+                    int altoAviso = (int) (32 * escala);
+                    int yAviso = (int) (yBanner + 170 * escala);
+                    g2.setColor(new Color(40, 24, 10, 200));
+                    g2.fill(new RoundRectangle2D.Double(cx - anchoAviso / 2.0, yAviso - altoAviso / 2.0,
+                            anchoAviso, altoAviso, altoAviso, altoAviso));
+                    textoCentrado(g2, "Haz clic para continuar", chica, Recursos.CREMA, cx, yAviso);
+                }
+            }
+            g2.dispose();
+        }
+
+        /** Transparencia de lo que se dibuje después (se combina con el desvanecimiento final). */
+        private void ponerTransparencia(Graphics2D g2, float alfa) {
+            float total = Math.max(0f, Math.min(1f, alfa * opacidad));
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, total));
+        }
+
+        /** Curva de caída con rebote (0 → 1). */
+        private double rebote(double x) {
+            if (x < 1 / 2.75) {
+                return 7.5625 * x * x;
+            } else if (x < 2 / 2.75) {
+                x -= 1.5 / 2.75;
+                return 7.5625 * x * x + 0.75;
+            } else if (x < 2.5 / 2.75) {
+                x -= 2.25 / 2.75;
+                return 7.5625 * x * x + 0.9375;
+            }
+            x -= 2.625 / 2.75;
+            return 7.5625 * x * x + 0.984375;
+        }
+
+        /** Cada hoja es una imagen que baja, se mece de lado a lado y gira. */
+        private void dibujarHojas(Graphics2D g2, int w, int h, float seg) {
+            for (int i = 0; i < HOJAS; i++) {
+                if (hojaImagen[i] == null) {
+                    continue;
+                }
+                float y = (hojaY[i] + seg * hojaVelocidad[i] * 1.6f) % 1.25f;
+                double x = hojaX[i] * w + Math.sin(seg * 1.7 + hojaFase[i]) * 40;
+                double py = (y - 0.12) * h;
+                int ancho = (int) (36 * hojaTamano[i]);
+                int alto = (int) (26 * hojaTamano[i]);
+                AffineTransform antes = g2.getTransform();
+                g2.translate(x, py);
+                g2.rotate(hojaFase[i] + seg * hojaGiro[i]);
+                g2.drawImage(hojaImagen[i], -ancho / 2, -alto / 2, ancho, alto, null);
+                g2.setTransform(antes);
+            }
+        }
+
+        /** Imagen del banner café con el texto encima. */
+        private void dibujarBanner(Graphics2D g2, int cx, int cy, double escala) {
+            int ancho = (int) (560 * escala);
+            int alto = (int) (84 * escala);
+            if (banner != null) {
+                g2.drawImage(banner, cx - ancho / 2, cy - alto / 2, ancho, alto, null);
+            }
+            textoCentrado(g2, "¡Oh no, perdiste!", Recursos.fuente(Font.BOLD, Math.max(12, (int) (46 * escala))),
+                    Recursos.CREMA, cx, cy);
+        }
+
+        /** Dibuja un texto centrado en (cx, cy) con una sombra suave. */
+        private void textoCentrado(Graphics2D g2, String texto, Font fuente, Color color, int cx, int cy) {
+            g2.setFont(fuente);
+            FontMetrics fm = g2.getFontMetrics();
+            int x = cx - fm.stringWidth(texto) / 2;
+            int y = cy + (fm.getAscent() - fm.getDescent()) / 2;
+            g2.setColor(new Color(0, 0, 0, 120));
+            g2.drawString(texto, x + 2, y + 2);
+            g2.setColor(color);
+            g2.drawString(texto, x, y);
+        }
+
+        /**
+         * El duende se arma con tres imágenes del mismo tamaño (265 x 250), una encima de otra:
+         * las manos (quietas), la cabeza (que gira) y las lágrimas (que resbalan por las mejillas).
+         */
+        private void dibujarDuende(Graphics2D g2, double cx, double cy, double escala, double giro, long t) {
+            AffineTransform antes = g2.getTransform();
+            g2.translate(cx, cy);         // (cx, cy) es el centro de la cara
+            g2.scale(escala, escala);
+
+            dibujarCapa(g2, duendeManos);                 // las manos no giran
+
+            g2.rotate(giro, 0, 40);                       // la cabeza niega (gira sobre el cuello)
+            boolean parpadeo = (t / 120) % 25 == 0;       // de vez en cuando cierra los ojos
+            dibujarCapa(g2, parpadeo ? duendeParpadeo : duendeTriste);
+
+            // Lágrimas: bajan desde los ojos y se van haciendo transparentes
+            if (t > 1000 && lagrima != null) {
+                for (int lado = -1; lado <= 1; lado += 2) {
+                    double ciclo = ((t - 1000 + (lado > 0 ? 450 : 0)) % 900) / 900.0;
+                    int x = lado * 30 - 8;
+                    int y = (int) (18 + ciclo * 46) - 9;
+                    ponerTransparencia(g2, (float) (1 - ciclo));
+                    g2.drawImage(lagrima, x, y, 16, 18, null);
+                }
+                ponerTransparencia(g2, 1f);
+            }
+            g2.setTransform(antes);
+        }
+
+        /** Dibuja una capa del duende; (130, 160) de la imagen es el centro de la cara. */
+        private void dibujarCapa(Graphics2D g2, BufferedImage capa) {
+            if (capa != null) {
+                g2.drawImage(capa, -130, -160, 265, 250, null);
+            }
+        }
     }
 
     // =================================================================== utilidades

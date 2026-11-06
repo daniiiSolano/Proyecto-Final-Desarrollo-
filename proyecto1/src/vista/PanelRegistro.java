@@ -17,10 +17,9 @@ import java.awt.*;
 public class PanelRegistro extends PanelConFondo {
 
     private static final int PASOS = AutenticadorFacial.MUESTRAS_REQUERIDAS;
+    // El registro usa una sola fotografía de frente (no se toman fotos desde otros ángulos)
     private static final String[] PISTAS = {
-            "mira al frente",
-            "gira a la izquierda",
-            "gira a la derecha"
+            "mira al frente"
     };
 
     private final JuegoController controller;
@@ -176,7 +175,7 @@ public class PanelRegistro extends PanelConFondo {
         acciones.setOpaque(false);
         acciones.add(btnCapturar);
         acciones.add(
-                ComponentesLogin.enlace("Descartar capturas", () -> {
+                ComponentesLogin.enlace("Descartar foto", () -> {
                     controller.descartarMuestrasRostro();
                     actualizarPasos(0);
                 })
@@ -185,8 +184,8 @@ public class PanelRegistro extends PanelConFondo {
         sur.add(Box.createVerticalStrut(4));
 
         sur.add(ComponentesLogin.texto(
-                "Se toman " + PASOS + " capturas. Es opcional, pero sin rostro "
-                        + "solo podrás entrar con contraseña.",
+                "Se toma una sola foto de frente, cuando tu rostro esté centrado y quieto. "
+                        + "Es opcional, pero sin rostro solo podrás entrar con contraseña.",
                 16
         ));
 
@@ -238,8 +237,8 @@ public class PanelRegistro extends PanelConFondo {
 
         lblPaso.setText(
                 n >= PASOS
-                        ? "Rostro listo (" + PASOS + " de " + PASOS + ")"
-                        : "Paso " + (n + 1) + " de " + PASOS + " · " + PISTAS[n]
+                        ? "Foto frontal lista"
+                        : "Foto frontal · " + PISTAS[Math.min(n, PISTAS.length - 1)]
         );
 
         for (int i = 0; i < PASOS; i++) {

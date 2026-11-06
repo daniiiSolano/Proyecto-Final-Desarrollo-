@@ -91,7 +91,12 @@ public class JuegoController {
     }
 
     public String getEstadoCamara() {
-        return camara.getEstado();
+        String estado = camara.getEstado();
+        // Mientras se toma la foto o se reconoce el rostro se avisa en la etiqueta de la cámara
+        if (ocupadoRostro.get() && "Cámara activa".equals(estado)) {
+            return "Analizando tu rostro…";
+        }
+        return estado;
     }
 
     private synchronized AutenticadorFacial obtenerAutenticador() {
@@ -99,7 +104,7 @@ public class JuegoController {
             try {
                 autenticador = new AutenticadorFacial(camara);
                 errorAutenticador = null;
-            } catch (IllegalStateException | LinkageError e) {
+            } catch (RuntimeException | LinkageError e) {
                 errorAutenticador = e instanceof LinkageError
                         ? "Falta la librería JavaCV (carpeta javacv-libs): " + e
                         : e.getMessage();
@@ -146,13 +151,18 @@ public class JuegoController {
                 }
                 String nombre = a.reconocerRostro();
                 if (nombre == null) {
-                    mensaje("No se reconoció tu rostro. Mira de frente a la cámara con buena luz, "
+                    mensaje(a.getMotivoRechazo() + "\nMira de frente a la cámara con buena luz, "
                             + "o entra con tu correo y contraseña.");
                 } else {
                     entrar(nombre);
                 }
             } catch (IllegalStateException e) {
                 mensaje(e.getMessage());
+            } catch (RuntimeException e) {
+                // Antes un error inesperado de OpenCV cerraba el hilo sin avisar nada
+                System.err.println("Error en el reconocimiento facial: " + e);
+                mensaje("Ocurrió un error al reconocer el rostro. Inténtalo de nuevo "
+                        + "o entra con tu correo y contraseña.");
             } finally {
                 ocupadoRostro.set(false);
             }
@@ -172,10 +182,13 @@ public class JuegoController {
                 if (a == null) {
                     mensaje(errorAutenticador);
                 } else if (a.capturarMuestra() < 0) {
-                    mensaje("No se detectó un rostro. Mira de frente a la cámara, con buena luz y sin nada tapándote.");
+                    mensaje("No se pudo tomar la foto\n" + a.getMotivoRechazo());
                 }
             } catch (IllegalStateException e) {
                 mensaje(e.getMessage());
+            } catch (RuntimeException e) {
+                System.err.println("Error al capturar el rostro: " + e);
+                mensaje("Ocurrió un error al tomar la foto del rostro. Inténtalo de nuevo.");
             } finally {
                 ocupadoRostro.set(false);
                 alTerminar.accept(totalMuestrasRostro());

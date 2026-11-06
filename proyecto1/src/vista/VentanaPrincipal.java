@@ -53,6 +53,9 @@ public class VentanaPrincipal extends JFrame {
 
     private JPanel capaVictoria;
     private JLabel lblVictoria;
+    private JLabel lblCerrar;           // "Haz clic para cerrar" (solo se ve cuando termina la animación)
+    private boolean victoriaTerminada = false;  // true cuando la animación ya se reprodujo completa
+    private long momentoFinVictoria;            // hora (ms) en que terminó la animación
     private JLabel lblGanador;          // "¡Ganó el Jugador 1: Ana!"
     private PanelImagen bannerGanador;  // imagen de fondo del mensaje del ganador
     private HiloAnimacion tareaVictoria;
@@ -189,7 +192,7 @@ public class VentanaPrincipal extends JFrame {
         };
         capaVictoria.setOpaque(false);
         lblVictoria = new JLabel("", JLabel.CENTER);
-        JLabel lblCerrar = Recursos.crearEtiqueta("Haz clic para cerrar", 20, false, Recursos.CREMA);
+        lblCerrar = Recursos.crearEtiqueta("Haz clic para cerrar", 20, false, Recursos.CREMA);
 
         // Mensaje con el número y el nombre del ganador, sobre la imagen del banner café
         lblGanador = Recursos.crearEtiqueta("", 34, true, Recursos.CREMA);
@@ -208,10 +211,15 @@ public class VentanaPrincipal extends JFrame {
         gc.gridy = 2;
         gc.insets = new Insets(10, 0, 0, 0);
         capaVictoria.add(lblCerrar, gc);
+        // Los clics durante la animación se ignoran (la capa los atrapa para que no lleguen al tablero).
+        // Solo se cierra con un clic que empiece DESPUÉS de que la animación terminó; así los clics
+        // que el jugador hizo mientras se reproducía no la cierran al final.
         capaVictoria.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                detenerAnimacionVictoria();
+            public void mousePressed(MouseEvent e) {
+                if (victoriaTerminada && e.getWhen() >= momentoFinVictoria) {
+                    detenerAnimacionVictoria();
+                }
             }
         });
         setGlassPane(capaVictoria);
@@ -241,10 +249,12 @@ public class VentanaPrincipal extends JFrame {
             retrasos[i] = RETRASO_VICTORIA_MS;
         }
         lblVictoria.setIcon(fotogramas[0]);
+        victoriaTerminada = false;
+        lblCerrar.setForeground(new Color(0, 0, 0, 0)); // oculto (sin mover nada) mientras se reproduce
         capaVictoria.setVisible(true);
         iniciarSonidoVictoria();
         tareaVictoria = new HiloAnimacion(lblVictoria, fotogramas, retrasos, false,
-                this::detenerAnimacionVictoria);
+                this::terminarAnimacionVictoria);
         hiloVictoria = new Thread(tareaVictoria, "HiloVictoria");
         hiloVictoria.start();
     }
@@ -310,7 +320,24 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Se llama cuando la animación de victoria terminó completa: se queda en el último fotograma,
+     * se apaga la música y ya se permite cerrarla con un clic.
+     */
+    private void terminarAnimacionVictoria() {
+        if (tareaSonidoVictoria != null) {
+            tareaSonidoVictoria.detener();
+            tareaSonidoVictoria = null;
+        }
+        tareaVictoria = null;
+        hiloVictoria = null;
+        victoriaTerminada = true;
+        momentoFinVictoria = System.currentTimeMillis();
+        lblCerrar.setForeground(Recursos.CREMA);
+    }
+
     private void detenerAnimacionVictoria() {
+        victoriaTerminada = false;
         if (tareaSonidoVictoria != null) { // la música se apaga junto con la animación
             tareaSonidoVictoria.detener();
             tareaSonidoVictoria = null;

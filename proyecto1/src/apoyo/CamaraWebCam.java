@@ -16,6 +16,10 @@ public class CamaraWebCam implements ProveedorCamara {
     private volatile BufferedImage ultimo;
     private volatile String estado = "Cámara apagada";
 
+    private static final long REINTENTO_MS = 2500;        // espera antes de reintentar abrir la cámara
+    private static final long SIN_IMAGEN_AVISO_MS = 3000;  // sin imagen: se avisa en el estado
+    private static final long SIN_IMAGEN_MAX_MS = 8000;    // sin imagen: se cierra y se reintenta
+
     public synchronized void usar() {
         usos++;
         if (hilo == null) {
@@ -48,37 +52,80 @@ public class CamaraWebCam implements ProveedorCamara {
     }
 
     private void iniciarHilo() {
-        hilo = new Thread(this::bucle, "HiloCamara");
+        iniciarHilo(0);
+    }
+
+    /** Arranca el hilo de la cámara; si retrasoMs es mayor que 0 espera antes de abrirla (reintentos). */
+    private void iniciarHilo(long retrasoMs) {
+        hilo = new Thread(() -> {
+            if (retrasoMs > 0) {
+                try {
+                    Thread.sleep(retrasoMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            bucle();
+        }, "HiloCamara");
         hilo.setDaemon(true);
         hilo.start();
     }
 
     private void bucle() {
+        // Si mientras se esperaba el reintento ya nadie usa la cámara, no se abre
+        synchronized (this) {
+            if (usos <= 0) {
+                hilo = null;
+                estado = "Cámara apagada";
+                return;
+            }
+        }
         boolean fallo = false;
-        OpenCVFrameGrabber grabador = new OpenCVFrameGrabber(0);
-        Java2DFrameConverter conversor = new Java2DFrameConverter();
+        boolean sinLibreria = false;
+        OpenCVFrameGrabber grabador = null;
         try {
+            grabador = new OpenCVFrameGrabber(0);
+            Java2DFrameConverter conversor = new Java2DFrameConverter();
             estado = "Abriendo cámara…";
             grabador.start();
             estado = "Cámara activa";
+            long ultimoCuadro = System.currentTimeMillis();
             while (hayUsos()) {
                 Frame cuadro = grabador.grab();
                 if (cuadro == null || cuadro.image == null) {
+                    long sinImagen = System.currentTimeMillis() - ultimoCuadro;
+                    if (sinImagen > SIN_IMAGEN_MAX_MS) {
+                        // Se abrió pero no manda nada (típico si otra app la tiene): se cierra y se reintenta
+                        throw new IllegalStateException("La cámara no envía imágenes");
+                    }
+                    if (sinImagen > SIN_IMAGEN_AVISO_MS) {
+                        estado = "La cámara no envía imagen";
+                    }
                     Thread.sleep(10);
                     continue;
                 }
                 BufferedImage img = conversor.convert(cuadro);
                 if (img != null) {
                     ultimo = copiar(img);
+                    ultimoCuadro = System.currentTimeMillis();
+                    if (!"Cámara activa".equals(estado)) {
+                        estado = "Cámara activa";
+                    }
                 }
             }
         } catch (Exception | LinkageError e) {
             fallo = true;
-            estado = "No se pudo abrir la cámara";
+            sinLibreria = e instanceof LinkageError;
+            estado = sinLibreria ? "Falta la librería de la cámara"
+                    : "Cámara ocupada o no disponible";
+            System.err.println("No se pudo usar la cámara (¿la está usando otra aplicación como Zoom?): " + e);
         } finally {
+            // Siempre se libera la cámara para que otras aplicaciones (o el siguiente intento) puedan usarla
             try {
-                grabador.stop();
-                grabador.release();
+                if (grabador != null) {
+                    grabador.stop();
+                    grabador.release();
+                }
             } catch (Exception | LinkageError e) {
                 // se ignora: ya se estaba cerrando
             }
@@ -88,8 +135,10 @@ public class CamaraWebCam implements ProveedorCamara {
             }
             synchronized (this) {
                 hilo = null;
-                if (!fallo && usos > 0) {
-                    iniciarHilo();
+                if (usos > 0 && !sinLibreria) {
+                    // Antes no se reintentaba tras un fallo: si Zoom tenía la cámara, quedaba sin imagen
+                    // hasta cambiar de pantalla. Ahora se reintenta sola cada pocos segundos.
+                    iniciarHilo(fallo ? REINTENTO_MS : 0);
                 }
             }
         }
