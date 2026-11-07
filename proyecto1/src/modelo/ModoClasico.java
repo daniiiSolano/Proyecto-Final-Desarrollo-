@@ -1,5 +1,7 @@
 package modelo;
 
+import modelo.*;
+
 // Clase que tiene las reglas del modo clásico (2 jugadores, cada uno con su tablero de 6x6).
 // y cuánto tiempo ha pasado, y esta clase decide qué pasa en el juego.
 public class ModoClasico {
@@ -150,6 +152,9 @@ public class ModoClasico {
         this.primeraCarta = null;
         this.segundaCarta = null;
         reiniciarTiempo();
+
+        tablero1.imprimirTableroEnConsola(jugador1.getNombre());
+        tablero2.imprimirTableroEnConsola(jugador2.getNombre());
     }
 
     // Detiene la partida sin ganador (se usa cuando el jugador sale de la pantalla)
@@ -402,6 +407,7 @@ public class ModoClasico {
             jugador2.incrementarPartidasGanadas();
         }
     }
+
 }
 
 

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
+
 public class TableroMatriz {
 
     public static final int FILAS = 6;
@@ -13,7 +14,7 @@ public class TableroMatriz {
 
     private static final Random RANDOM = new Random();
 
-    private final Casillas[][] matriz = new Casillas[FILAS][COLUMNAS];
+    private final modelo.Casillas[][] matriz = new modelo.Casillas[FILAS][COLUMNAS];
 
     /**
      * Tablero ALEATORIO: las 18 imágenes (cada una dos veces) se revuelven y se
@@ -30,7 +31,7 @@ public class TableroMatriz {
         int indice = 0;
         for (int f = 0; f < FILAS; f++) {
             for (int c = 0; c < COLUMNAS; c++) {
-                matriz[f][c] = new Casillas(objetos.get(indice++));
+                matriz[f][c] = new modelo.Casillas(objetos.get(indice++));
             }
         }
     }
@@ -82,6 +83,8 @@ public class TableroMatriz {
         return true;
     }
 
+
+
     public int contarParejasEncontradas() {
         int emparejadas = 0;
         for (int f = 0; f < FILAS; f++) {
@@ -93,9 +96,21 @@ public class TableroMatriz {
         }
         return emparejadas / 2;
     }
-
+    public void imprimirTableroEnConsola(String nombreJugador) {
+        System.out.println("=== TABLERO DE " + nombreJugador.toUpperCase() + " (6x6) ===");
+        for (int f = 0; f < FILAS; f++) {
+            for (int c = 0; c < COLUMNAS; c++) {
+                int idObjeto = matriz[f][c].getIdObjeto();
+                // Muestra: [Fila, Columna] / ID
+                System.out.printf("[%d,%d]: ID %-2d  ", f, c, idObjeto);
+            }
+            System.out.println(); // Salto de línea por cada fila
+        }
+        System.out.println();
+    }
     public boolean todasLasParejasEncontradas() {
         return contarParejasEncontradas() == PAREJAS;
     }
 }
+
 
