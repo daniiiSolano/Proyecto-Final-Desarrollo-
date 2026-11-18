@@ -74,6 +74,7 @@ public class PanelModoPatron extends PanelConFondo {
     private Timer pausaNivel;      // espera breve antes de mostrar el patrón del siguiente nivel
     private long ultimoTick;
     private boolean turnoJugador = false;
+    private String nombreJugador = "";   // nombre para el ranking de premios (se pide antes de jugar)
 
     private CapaDerrota capaDerrota;          // animación de derrota en curso (o null)
     private volatile Player sonidoDerrota;    // reproductor del sonido de derrota (o null)
@@ -158,12 +159,26 @@ public class PanelModoPatron extends PanelConFondo {
 
     /** Botón "Iniciar partida" / "Jugar de nuevo". */
     private void iniciarPartida() {
+        if (nombreJugador.isEmpty() && !pedirNombre()) {
+            return; // sin nombre no se empieza la partida
+        }
         detenerAnimacionDerrota();
         detenerTemporizadores();
         controller.iniciarPartidaPatron();
         btnIniciar.setText("Reiniciar");
         actualizarDatosNivel();
         mostrarPatron();
+    }
+
+    /** Pide el nombre del jugador antes de empezar (se usa en el ranking de premios). */
+    private boolean pedirNombre() {
+        String respuesta = JOptionPane.showInputDialog(this, "Escribe tu nombre para jugar:",
+                "Modo patrones", JOptionPane.QUESTION_MESSAGE);
+        if (respuesta == null || respuesta.trim().isEmpty()) {
+            return false;
+        }
+        nombreJugador = respuesta.trim();
+        return true;
     }
 
     /** Enciende una por una las casillas del patrón. Mientras tanto no se aceptan clics. */
@@ -277,6 +292,7 @@ public class PanelModoPatron extends PanelConFondo {
         }
 
         int superados = controller.getNivelesSuperadosPatron();
+        controller.registrarGanadorPatron(nombreJugador, superados); // premios (ignora 0 niveles)
         lblEstado.setText("Fin del juego. Niveles superados: " + superados);
         btnIniciar.setText("Jugar de nuevo");
 
@@ -285,6 +301,8 @@ public class PanelModoPatron extends PanelConFondo {
                 + " (patrón de " + controller.getLongitudPatron() + " casillas)."
                 + "\nNiveles superados: " + superados
                 + "\nMejor resultado de la sesión: " + controller.getMejorNivelPatron() + " niveles"
+                + (superados > 0 ? "\nTu marca compite en el ranking de Premios (modo patrones)."
+                : "\nSupera al menos un nivel para aparecer en Premios.")
                 + "\n\nLa casilla iluminada es la que debías presionar.";
         // Primero la animación de derrota (con su sonido); al terminar aparece el mensaje de siempre
         mostrarAnimacionDerrota(superados, () -> Recursos.mostrarAviso(this, "Fin del juego", mensaje));
@@ -294,6 +312,7 @@ public class PanelModoPatron extends PanelConFondo {
     private void detenerPartida() {
         detenerAnimacionDerrota();
         turnoJugador = false;
+        nombreJugador = ""; // la próxima vez que entre se vuelve a pedir el nombre
         detenerTemporizadores();
         controller.cancelarPartidaPatron(); // vuelve al nivel 1 (se conserva el mejor resultado)
         tablero.mostrarFrente(false);
@@ -887,4 +906,3 @@ public class PanelModoPatron extends PanelConFondo {
         return barra;
     }
 }
-
