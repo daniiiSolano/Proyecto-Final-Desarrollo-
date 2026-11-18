@@ -4,6 +4,7 @@ import apoyo.PanelConFondo;
 import apoyo.Recursos;
 import apoyo.Recursos.PanelRedondeado;
 import controlador.JuegoController;
+import modelo.GestorPremios;
 import modelo.Jugador;
 
 import javax.swing.*;
@@ -13,15 +14,21 @@ import java.util.Locale;
 
 public class PanelPremios extends PanelConFondo {
 
-    // Premio (USD) = 100 / intentos.  Premio (₡) = fórmula del enunciado: 1/puntaje * 100 * CambioDolar
+    // Clásico: Premio (USD) = 100 / intentos.  Patrones: Premio (USD) = niveles * GestorPremios.USD_POR_NIVEL
+    // Premio (₡) = Premio (USD) * CambioDolar
     private static final String[] ENCABEZADOS = {"Posición", "Jugador", "Intentos", "Premio (USD)", "Premio (₡)"};
+    private static final String[] ENCABEZADOS_PATRON = {"Posición", "Jugador", "Niveles", "Premio (USD)", "Premio (₡)"};
     private static final double[] PESOS_COLUMNAS = {0.13, 0.31, 0.14, 0.19, 0.23};
     private static final String TEXTO_LIBRE = "¡Gana una partida para aparecer aquí!";
+    private static final String TEXTO_LIBRE_PATRON = "¡Supera un nivel para aparecer aquí!";
     private static final int TAMANO_ICONO = 56;
 
     private final JuegoController controller;
     private PanelRedondeado tarjeta;
     private JLabel lblCambio;
+    private JLabel lblSubtitulo;
+    private Recursos.BotonBosque btnModo;
+    private boolean verPatron = false; // false = ranking del modo clásico, true = modo patrones
 
     public PanelPremios(JuegoController controller) {
         super(Recursos.FONDO);
@@ -41,7 +48,9 @@ public class PanelPremios extends PanelConFondo {
         norte.add(Recursos.crearBanner("Premios", 42), gc);
         gc.gridy = 1;
         gc.insets = new Insets(6, 0, 0, 0);
-        norte.add(Recursos.crearSubtitulo("Los 5 mejores jugadores del modo clásico"), gc);
+        PanelRedondeado subtitulo = Recursos.crearSubtitulo("Los 5 mejores jugadores del modo clásico");
+        lblSubtitulo = (JLabel) subtitulo.getComponent(0); // cambia según el ranking que se vea
+        norte.add(subtitulo, gc);
         add(norte, BorderLayout.NORTH);
 
         tarjeta = new PanelRedondeado(new BorderLayout(0, 6), Recursos.CREMA, Recursos.VERDE_OSCURO, 36);
@@ -57,11 +66,19 @@ public class PanelPremios extends PanelConFondo {
         envoltorio.add(tarjeta, BorderLayout.CENTER);
         add(envoltorio, BorderLayout.CENTER);
 
+        btnModo = Recursos.crearBoton("Ver modo patrones");
+        btnModo.setFont(Recursos.fuente(Font.BOLD, 24));
+        btnModo.addActionListener(evt -> {
+            verPatron = !verPatron;
+            aplicarModo();
+        });
+
         Recursos.BotonBosque btnVolver = Recursos.crearBoton("Volver al menú");
         btnVolver.setFont(Recursos.fuente(Font.BOLD, 24));
         btnVolver.addActionListener(evt -> controller.volverAlMenu());
         JPanel botones = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 2));
         botones.setOpaque(false);
+        botones.add(btnModo);
         botones.add(btnVolver);
         add(botones, BorderLayout.SOUTH);
     }
@@ -75,7 +92,16 @@ public class PanelPremios extends PanelConFondo {
         tarjeta.repaint();
     }
 
+    // Cambia entre el ranking del modo clásico y el del modo patrones
+    private void aplicarModo() {
+        lblSubtitulo.setText(verPatron ? "Los 5 mejores jugadores del modo patrones"
+                : "Los 5 mejores jugadores del modo clásico");
+        btnModo.setText(verPatron ? "Ver modo clásico" : "Ver modo patrones");
+        refrescar();
+    }
+
     private JPanel crearTabla() {
+        String[] encabezados = verPatron ? ENCABEZADOS_PATRON : ENCABEZADOS;
         JPanel tabla = new JPanel(new GridBagLayout());
         tabla.setOpaque(false);
         GridBagConstraints gc = new GridBagConstraints();
@@ -83,7 +109,7 @@ public class PanelPremios extends PanelConFondo {
         for (int col = 0; col < ENCABEZADOS.length; col++) {
             PanelRedondeado cab = new PanelRedondeado(new GridBagLayout(), Recursos.CAFE, Recursos.CAFE_OSCURO, 16);
             cab.setBorder(BorderFactory.createEmptyBorder(4, 6, 6, 6));
-            cab.add(Recursos.crearEtiqueta(ENCABEZADOS[col], 22, true, Recursos.CREMA));
+            cab.add(Recursos.crearEtiqueta(encabezados[col], 22, true, Recursos.CREMA));
             gc.gridx = col;
             gc.gridy = 0;
             gc.weightx = PESOS_COLUMNAS[col];
@@ -91,8 +117,15 @@ public class PanelPremios extends PanelConFondo {
             gc.insets = new Insets(0, 2, 6, 2);
             tabla.add(cab, gc);
         }
-        List<Jugador> top = controller.getTop5();
-        for (int i = 0; i < 5; i++) {
+        // En el modo patrones el campo "intentos" del Jugador guarda los niveles superados
+        List<Jugador> top = verPatron ? controller.getTop5Patron() : controller.getTop5();
+        // Los empates comparten posición (1, 1, 3...) y puede haber más de 5 filas si hay empate en el 5.º
+        int[] posiciones = new int[top.size()];
+        for (int k = 0; k < top.size(); k++) {
+            boolean igualAlAnterior = k > 0 && top.get(k).getIntentos() == top.get(k - 1).getIntentos();
+            posiciones[k] = igualAlAnterior ? posiciones[k - 1] : k + 1;
+        }
+        for (int i = 0; i < Math.max(5, top.size()); i++) {
             int posicion = i + 1;
             gc.gridy = posicion;
             gc.weighty = 1;
@@ -107,7 +140,7 @@ public class PanelPremios extends PanelConFondo {
                 gc.weightx = PESOS_COLUMNAS[0];
                 tabla.add(medalla, gc);
 
-                JLabel libre = Recursos.crearEtiqueta(TEXTO_LIBRE, 22, false, Recursos.CAFE);
+                JLabel libre = Recursos.crearEtiqueta(verPatron ? TEXTO_LIBRE_PATRON : TEXTO_LIBRE, 22, false, Recursos.CAFE);
                 libre.setHorizontalAlignment(JLabel.CENTER);
                 libre.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Recursos.CREMA_OSCURO));
                 gc.gridx = 1;
@@ -119,11 +152,19 @@ public class PanelPremios extends PanelConFondo {
             }
 
             Jugador j = top.get(i);
-            double premioDolares = 100.0 / j.getIntentos(); // 1/puntaje * 100
+            double premioDolares = verPatron
+                    ? GestorPremios.calcularPremioDolaresPatron(j.getIntentos())
+                    : 100.0 / j.getIntentos(); // clásico: 1/puntaje * 100
+            boolean empate = (i > 0 && j.getIntentos() == top.get(i - 1).getIntentos())
+                    || (i + 1 < top.size() && j.getIntentos() == top.get(i + 1).getIntentos());
+            String textoPuntaje = empate
+                    ? "<html><div style='text-align:center'>" + j.getIntentos()
+                      + "<br><span style='font-size:12px'>mismo puntaje</span></div></html>"
+                    : String.valueOf(j.getIntentos());
             JComponent[] celdas = {
-                    crearCeldaMedalla(posicion),
-                    crearCeldaJugador(j.getNombre(), Recursos.DUENDES[i]),
-                    crearCeldaTexto(String.valueOf(j.getIntentos())),
+                    crearCeldaMedalla(posiciones[i]),
+                    crearCeldaJugador(j.getNombre(), Recursos.DUENDES[i % Recursos.DUENDES.length]),
+                    crearCeldaTexto(textoPuntaje),
                     crearCeldaTexto(String.format(Locale.US, "$ %,.2f", premioDolares)),
                     // Si el BCCR no respondió todavía, el premio en colones queda en "-"
                     crearCeldaTexto(j.getPremio() <= 0 ? "-" : String.format(Locale.US, "₡ %,.2f", j.getPremio()))
@@ -167,5 +208,3 @@ public class PanelPremios extends PanelConFondo {
         return etiqueta;
     }
 }
-
-
