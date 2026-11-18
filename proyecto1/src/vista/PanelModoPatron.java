@@ -1,7 +1,10 @@
 package vista;
 
+import apoyo.BotonImagen;
+import apoyo.CampoTexto;
 import apoyo.Imagenes;
 import apoyo.PanelConFondo;
+import apoyo.PanelImagen;
 import apoyo.Recursos;
 import apoyo.Recursos.PanelRedondeado;
 import apoyo.RutasLogin;
@@ -38,7 +41,6 @@ public class PanelModoPatron extends PanelConFondo {
             "Si fallas, el juego termina."
     };
 
-    // Tiempos de la animación del patrón (milisegundos)
     private static final int ESPERA_ANTES_DE_MOSTRAR_MS = 800;
     private static final int CASILLA_ENCENDIDA_MS = 700;
     private static final int PAUSA_ENTRE_CASILLAS_MS = 300;
@@ -46,14 +48,14 @@ public class PanelModoPatron extends PanelConFondo {
     private static final int PAUSA_ENTRE_NIVELES_MS = 1200;
     private static final int INTERVALO_CRONOMETRO_MS = 50;
 
-    // Animación de derrota: el duende triste cae sobre el tablero mientras caen hojas del bosque
     private static final int DURACION_DERROTA_MS = 4200;
     private static final int DESVANECER_DERROTA_MS = 450;
     private static final int CUADRO_DERROTA_MS = 30;
-    /** Sonido de derrota: recursos/sonidos/perdióJuego.mp3 (se escribe con \u00f3 para que no dependa de la codificación). */
     private static final String SONIDO_DERROTA = Recursos.CARPETA_SONIDOS + "perdi\u00f3Juego.mp3";
 
     private static final String TEXTO_INICIAL = "Memoriza el patrón de casillas y repítelo en el mismo orden.";
+    private static final String FONDO_VENTANA_NOMBRES = "clasico/ventana_nombres.png";
+    private static final int LARGO_MAXIMO_NOMBRE = 15;
 
     private final JuegoController controller;
 
@@ -68,24 +70,21 @@ public class PanelModoPatron extends PanelConFondo {
     private JLabel lblTiempoEntre;
     private Recursos.BotonBosque btnIniciar;
 
-    // Temporizadores de Swing: corren en el hilo de eventos, así que pueden tocar la interfaz sin problemas
-    private Timer reproductor;     // muestra el patrón casilla por casilla
-    private Timer cronometro;      // descuenta los 12 s y los 2 s mientras el jugador responde
-    private Timer pausaNivel;      // espera breve antes de mostrar el patrón del siguiente nivel
+    private Timer reproductor;
+    private Timer cronometro;
+    private Timer pausaNivel;
     private long ultimoTick;
     private boolean turnoJugador = false;
-    private String nombreJugador = "";   // nombre para el ranking de premios (se pide antes de jugar)
 
-    private CapaDerrota capaDerrota;          // animación de derrota en curso (o null)
-    private volatile Player sonidoDerrota;    // reproductor del sonido de derrota (o null)
-    private volatile Object turnoSonido;      // identifica la reproducción vigente (para cancelarla a tiempo)
+    private CapaDerrota capaDerrota;
+    private volatile Player sonidoDerrota;
+    private volatile Object turnoSonido;
 
     public PanelModoPatron(JuegoController controller) {
         super(Recursos.FONDO);
         this.controller = controller;
         initComponents();
 
-        // CardLayout oculta este panel cuando se cambia de pestaña: en ese momento se detiene la partida
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentHidden(ComponentEvent e) {
@@ -107,7 +106,7 @@ public class PanelModoPatron extends PanelConFondo {
         gc.gridy = 1;
         gc.insets = new Insets(6, 0, 0, 0);
         PanelRedondeado subtitulo = Recursos.crearSubtitulo(TEXTO_INICIAL);
-        lblEstado = (JLabel) subtitulo.getComponent(0); // se usa para mostrar mensajes del juego
+        lblEstado = (JLabel) subtitulo.getComponent(0);
         norte.add(subtitulo, gc);
         add(norte, BorderLayout.NORTH);
 
@@ -155,12 +154,9 @@ public class PanelModoPatron extends PanelConFondo {
         add(botones, BorderLayout.SOUTH);
     }
 
-    // =================================================================== flujo del juego
-
-    /** Botón "Iniciar partida" / "Jugar de nuevo". */
     private void iniciarPartida() {
-        if (nombreJugador.isEmpty() && !pedirNombre()) {
-            return; // sin nombre no se empieza la partida
+        if (!controller.isPartidaPatronEnCurso() && !pedirNombre()) {
+            return;
         }
         detenerAnimacionDerrota();
         detenerTemporizadores();
@@ -170,21 +166,9 @@ public class PanelModoPatron extends PanelConFondo {
         mostrarPatron();
     }
 
-    /** Pide el nombre del jugador antes de empezar (se usa en el ranking de premios). */
-    private boolean pedirNombre() {
-        String respuesta = JOptionPane.showInputDialog(this, "Escribe tu nombre para jugar:",
-                "Modo patrones", JOptionPane.QUESTION_MESSAGE);
-        if (respuesta == null || respuesta.trim().isEmpty()) {
-            return false;
-        }
-        nombreJugador = respuesta.trim();
-        return true;
-    }
-
-    /** Enciende una por una las casillas del patrón. Mientras tanto no se aceptan clics. */
     private void mostrarPatron() {
         turnoJugador = false;
-        tablero.mostrarFrente(false); // apaga todas las casillas
+        tablero.mostrarFrente(false);
         reiniciarBarras();
         lblEstado.setText("Nivel " + controller.getNivelPatron() + ": observa el patrón...");
 
@@ -197,12 +181,10 @@ public class PanelModoPatron extends PanelConFondo {
         reproductor.addActionListener(e -> {
             int[] casilla = secuencia.get(indice[0]);
             if (!encendida[0]) {
-                // Enciende la casilla actual
                 tablero.marcarCasilla(casilla[0], casilla[1], true);
                 encendida[0] = true;
                 reproductor.setDelay(CASILLA_ENCENDIDA_MS);
             } else {
-                // La apaga y pasa a la siguiente
                 tablero.marcarCasilla(casilla[0], casilla[1], false);
                 encendida[0] = false;
                 indice[0]++;
@@ -217,7 +199,6 @@ public class PanelModoPatron extends PanelConFondo {
         reproductor.start();
     }
 
-    /** Terminó de mostrarse el patrón: el jugador tiene 12 s en total y 2 s entre casillas. */
     private void comenzarTurnoJugador() {
         controller.comenzarTurnoPatron();
         turnoJugador = true;
@@ -239,12 +220,10 @@ public class PanelModoPatron extends PanelConFondo {
         cronometro.start();
     }
 
-    /** Oyente del tablero: se llama cada vez que el jugador presiona una casilla. */
     private void casillaPresionada(int fila, int columna) {
         if (!turnoJugador) {
-            return; // se ignoran los clics mientras se muestra el patrón o si no hay partida
+            return;
         }
-        // Descuenta el tiempo transcurrido hasta este clic antes de verificarlo
         long ahora = System.nanoTime();
         if (controller.actualizarTiempoPatron((ahora - ultimoTick) / 1_000_000)) {
             ultimoTick = ahora;
@@ -273,18 +252,16 @@ public class PanelModoPatron extends PanelConFondo {
             case INCORRECTO:
                 terminarPartida();
                 break;
-            default: // IGNORADO
+            default:
                 break;
         }
     }
 
-    /** Fin de la partida por error o por tiempo. */
     private void terminarPartida() {
         turnoJugador = false;
         detenerTemporizadores();
         actualizarBarras();
 
-        // Se enciende la casilla que tocaba para que el jugador vea en qué se equivocó
         tablero.mostrarFrente(false);
         int[] esperado = controller.getPasoEsperadoPatron();
         if (esperado != null) {
@@ -292,7 +269,6 @@ public class PanelModoPatron extends PanelConFondo {
         }
 
         int superados = controller.getNivelesSuperadosPatron();
-        controller.registrarGanadorPatron(nombreJugador, superados); // premios (ignora 0 niveles)
         lblEstado.setText("Fin del juego. Niveles superados: " + superados);
         btnIniciar.setText("Jugar de nuevo");
 
@@ -301,20 +277,15 @@ public class PanelModoPatron extends PanelConFondo {
                 + " (patrón de " + controller.getLongitudPatron() + " casillas)."
                 + "\nNiveles superados: " + superados
                 + "\nMejor resultado de la sesión: " + controller.getMejorNivelPatron() + " niveles"
-                + (superados > 0 ? "\nTu marca compite en el ranking de Premios (modo patrones)."
-                : "\nSupera al menos un nivel para aparecer en Premios.")
                 + "\n\nLa casilla iluminada es la que debías presionar.";
-        // Primero la animación de derrota (con su sonido); al terminar aparece el mensaje de siempre
         mostrarAnimacionDerrota(superados, () -> Recursos.mostrarAviso(this, "Fin del juego", mensaje));
     }
 
-    /** Detiene todo y deja la pantalla como al inicio (se usa al salir de la pantalla). */
     private void detenerPartida() {
         detenerAnimacionDerrota();
         turnoJugador = false;
-        nombreJugador = ""; // la próxima vez que entre se vuelve a pedir el nombre
         detenerTemporizadores();
-        controller.cancelarPartidaPatron(); // vuelve al nivel 1 (se conserva el mejor resultado)
+        controller.cancelarPartidaPatron();
         tablero.mostrarFrente(false);
         lblEstado.setText(TEXTO_INICIAL);
         btnIniciar.setText("Iniciar partida");
@@ -322,13 +293,88 @@ public class PanelModoPatron extends PanelConFondo {
         reiniciarBarras();
     }
 
-    // =================================================================== animación de derrota
+    private boolean pedirNombre() {
+        Window dueno = SwingUtilities.getWindowAncestor(this);
+        JDialog ventana = new JDialog(dueno, "Nombre del jugador", Dialog.ModalityType.APPLICATION_MODAL);
+        ventana.setUndecorated(true);
 
-    /**
-     * Muestra la animación de derrota encima de esta pantalla (sin bloquear la aplicación: la
-     * mueve un Timer de Swing) y reproduce perdióJuego.mp3. Al terminar, o si el jugador hace
-     * clic, se quita la animación y se ejecuta alTerminar (el mensaje "Fin del juego").
-     */
+        String rutaFondo = Imagenes.cargar(FONDO_VENTANA_NOMBRES) != null ? FONDO_VENTANA_NOMBRES : "fondo.png";
+        PanelImagen fondo = new PanelImagen(rutaFondo, new GridBagLayout(), new Dimension(640, 340))
+                .respaldo(Recursos.CAFE);
+        fondo.setPreferredSize(new Dimension(640, 340));
+        fondo.setBorder(BorderFactory.createLineBorder(Recursos.CAFE_OSCURO, 4));
+
+        PanelImagen banner = new PanelImagen(RutasLogin.BANNER, new GridBagLayout(), new Dimension(430, 64))
+                .respaldo(Recursos.CAFE);
+        banner.setPreferredSize(new Dimension(430, 64));
+        banner.add(Recursos.crearEtiqueta("Ingrese su nombre", 30, true, Recursos.CREMA));
+
+        CampoTexto campo = crearCampoNombre();
+        PanelImagen tarjeta = new PanelImagen(RutasLogin.TARJETA, new GridBagLayout(), new Dimension(470, 100))
+                .respaldo(Recursos.CREMA);
+        tarjeta.setPreferredSize(new Dimension(470, 100));
+        GridBagConstraints t = new GridBagConstraints();
+        t.insets = new Insets(6, 8, 6, 8);
+        t.anchor = GridBagConstraints.LINE_END;
+        t.gridx = 0;
+        t.gridy = 0;
+        tarjeta.add(Recursos.crearEtiqueta("Jugador:", 26, true, Recursos.TEXTO), t);
+        t.anchor = GridBagConstraints.LINE_START;
+        t.gridx = 1;
+        tarjeta.add(campo, t);
+
+        BotonImagen btnConfirmar = ComponentesLogin.botonVerde("Confirmar", 26);
+        btnConfirmar.setPreferredSize(new Dimension(220, 54));
+
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.gridy = 0;
+        fondo.add(banner, gc);
+        gc.gridy = 1;
+        gc.insets = new Insets(18, 0, 18, 0);
+        fondo.add(tarjeta, gc);
+        gc.gridy = 2;
+        gc.insets = new Insets(0, 0, 0, 0);
+        fondo.add(btnConfirmar, gc);
+
+        final boolean[] confirmado = {false};
+        btnConfirmar.addActionListener(e -> {
+            if (recortar(campo.getText()).isEmpty()) {
+                Recursos.mostrarAviso(ventana, "Nombre del jugador", "Escribe tu nombre para empezar.");
+                return;
+            }
+            confirmado[0] = true;
+            ventana.dispose();
+        });
+        ventana.getRootPane().setDefaultButton(btnConfirmar);
+        ventana.getRootPane().registerKeyboardAction(e -> ventana.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        ventana.setContentPane(fondo);
+        ventana.pack();
+        ventana.setLocationRelativeTo(dueno);
+        SwingUtilities.invokeLater(campo::requestFocusInWindow);
+        ventana.setVisible(true);
+
+        if (confirmado[0]) {
+            controller.setNombreJugadorPatron(recortar(campo.getText()));
+        }
+        return confirmado[0];
+    }
+
+    private CampoTexto crearCampoNombre() {
+        CampoTexto campo = new CampoTexto(RutasLogin.CAMPO);
+        campo.setPreferredSize(new Dimension(250, 48));
+        campo.setText(controller.getNombreJugadorPatron());
+        campo.setToolTipText("Máximo " + LARGO_MAXIMO_NOMBRE + " letras.");
+        return campo;
+    }
+
+    private String recortar(String texto) {
+        texto = texto.trim();
+        return texto.length() > LARGO_MAXIMO_NOMBRE ? texto.substring(0, LARGO_MAXIMO_NOMBRE) : texto;
+    }
+
     private void mostrarAnimacionDerrota(int nivelesSuperados, Runnable alTerminar) {
         detenerAnimacionDerrota();
         JRootPane raiz = getRootPane();
@@ -342,7 +388,6 @@ public class PanelModoPatron extends PanelConFondo {
         reproducirSonidoDerrota();
     }
 
-    /** Quita la animación sin mostrar el mensaje final (al salir de la pantalla o reiniciar). */
     private void detenerAnimacionDerrota() {
         if (capaDerrota != null) {
             capaDerrota.terminar(false);
@@ -350,7 +395,6 @@ public class PanelModoPatron extends PanelConFondo {
         detenerSonidoDerrota();
     }
 
-    /** Reproduce una sola vez el sonido de derrota en un hilo aparte. */
     private void reproducirSonidoDerrota() {
         detenerSonidoDerrota();
         File archivo = buscarSonidoDerrota();
@@ -364,7 +408,7 @@ public class PanelModoPatron extends PanelConFondo {
             try (BufferedInputStream flujo = new BufferedInputStream(new FileInputStream(archivo))) {
                 Player reproductor = new Player(flujo);
                 sonidoDerrota = reproductor;
-                if (turnoSonido != turno) { // se canceló mientras se abría el archivo
+                if (turnoSonido != turno) {
                     reproductor.close();
                     return;
                 }
@@ -386,10 +430,6 @@ public class PanelModoPatron extends PanelConFondo {
         }
     }
 
-    /**
-     * Busca recursos/sonidos/perdióJuego.mp3. Si no está con ese nombre exacto, revisa la carpeta
-     * por si la "ó" quedó guardada de otra forma o cambian mayúsculas y minúsculas.
-     */
     private static File buscarSonidoDerrota() {
         File archivo = new File(SONIDO_DERROTA);
         if (archivo.exists()) {
@@ -407,7 +447,6 @@ public class PanelModoPatron extends PanelConFondo {
         return null;
     }
 
-    /** Capa transparente que se dibuja sobre esta pantalla con la animación del duende triste. */
     private final class CapaDerrota extends JComponent {
 
         private static final int HOJAS = 22;
@@ -415,7 +454,6 @@ public class PanelModoPatron extends PanelConFondo {
         private final int nivelesSuperados;
         private final Runnable alTerminar;
         private final Timer timer;
-        // Imágenes de la animación (carpeta recursos/imagenes/derrota/)
         private final BufferedImage banner = Imagenes.cargar(RutasLogin.BANNER);
         private final BufferedImage duendeTriste = Imagenes.cargar("derrota/duende_triste.png");
         private final BufferedImage duendeParpadeo = Imagenes.cargar("derrota/duende_parpadeo.png");
@@ -434,8 +472,8 @@ public class PanelModoPatron extends PanelConFondo {
         private final float[] hojaTamano = new float[HOJAS];
         private final BufferedImage[] hojaImagen = new BufferedImage[HOJAS];
         private long inicio;
-        private long inicioSalida = -1;   // momento en que empezó a desvanecerse
-        private float opacidad = 1f;      // 1 = visible, 0 = invisible (al desvanecerse)
+        private long inicioSalida = -1;
+        private float opacidad = 1f;
         private boolean terminada = false;
 
         CapaDerrota(int nivelesSuperados, Runnable alTerminar) {
@@ -447,13 +485,12 @@ public class PanelModoPatron extends PanelConFondo {
             for (int i = 0; i < HOJAS; i++) {
                 hojaX[i] = azar.nextFloat();
                 hojaY[i] = -azar.nextFloat() * 1.2f;
-                hojaVelocidad[i] = 0.10f + azar.nextFloat() * 0.12f;   // fracción del alto por segundo
+                hojaVelocidad[i] = 0.10f + azar.nextFloat() * 0.12f;
                 hojaFase[i] = azar.nextFloat() * 6.28f;
                 hojaGiro[i] = (azar.nextFloat() - 0.5f) * 4f;
                 hojaTamano[i] = 0.7f + azar.nextFloat() * 0.6f;
                 hojaImagen[i] = imagenesHojas[azar.nextInt(imagenesHojas.length)];
             }
-            // Mientras se ve la animación no se puede tocar el tablero; un clic la adelanta
             MouseAdapter raton = new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
@@ -488,7 +525,6 @@ public class PanelModoPatron extends PanelConFondo {
             return (System.nanoTime() - inicio) / 1_000_000;
         }
 
-        /** Empieza a desvanecerse (al terminar el tiempo o con un clic). */
         private void salir() {
             if (inicioSalida < 0) {
                 inicioSalida = transcurrido();
@@ -512,7 +548,6 @@ public class PanelModoPatron extends PanelConFondo {
             repaint();
         }
 
-        /** La capa cubre exactamente esta pantalla (también si se cambia el tamaño de la ventana). */
         private void ajustarTamano() {
             Container padre = getParent();
             if (padre == null) {
@@ -525,7 +560,6 @@ public class PanelModoPatron extends PanelConFondo {
             }
         }
 
-        /** Quita la capa; si continuar es true se muestra después el mensaje final. */
         void terminar(boolean continuar) {
             if (terminada) {
                 return;
@@ -546,8 +580,6 @@ public class PanelModoPatron extends PanelConFondo {
             }
         }
 
-        // ------------------------------------------------------------- dibujo (con imágenes)
-
         @Override
         protected void paintComponent(Graphics g) {
             int w = getWidth();
@@ -555,7 +587,7 @@ public class PanelModoPatron extends PanelConFondo {
             if (w <= 0 || h <= 0) {
                 return;
             }
-            long t = transcurrido();   // milisegundos desde que empezó la animación
+            long t = transcurrido();
             opacidad = 1f;
             if (inicioSalida >= 0) {
                 opacidad = 1f - Math.min(1f, (t - inicioSalida) / (float) DESVANECER_DERROTA_MS);
@@ -566,21 +598,17 @@ public class PanelModoPatron extends PanelConFondo {
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             ponerTransparencia(g2, 1f);
 
-            // 1) Velo café oscuro que aparece poco a poco (0.4 s)
             float velo = Math.min(1f, t / 400f);
             g2.setColor(new Color(40, 24, 10, (int) (165 * velo)));
             g2.fillRect(0, 0, w, h);
 
-            // 2) Hojas que caen
             dibujarHojas(g2, w, h, t / 1000f);
 
-            // Tamaño según la ventana (todo se agranda o se achica junto)
             double escala = Math.min(w / 900.0, h / 620.0);
             escala = Math.max(0.55, Math.min(1.25, escala));
             int cx = w / 2;
             int yBanner = (int) (h * 0.56);
 
-            // 3) El duende cae desde arriba con un rebote y luego niega con la cabeza
             double caida = rebote(Math.min(1.0, Math.max(0.0, (t - 150) / 850.0)));
             double yDuende = -200 * escala + (yBanner - 100 * escala + 200 * escala) * caida;
             double giro = 0;
@@ -590,14 +618,12 @@ public class PanelModoPatron extends PanelConFondo {
             }
             dibujarDuende(g2, cx, yDuende, escala, giro, t);
 
-            // 4) Banner "¡Oh no, perdiste!" que aparece con un pequeño salto
             double pop = t < 700 ? 0 : Math.min(1.0, (t - 700) / 380.0);
             if (pop > 0) {
                 double s = pop < 0.7 ? pop / 0.7 * 1.12 : 1.12 - (pop - 0.7) / 0.3 * 0.12;
                 dibujarBanner(g2, cx, yBanner, escala * s);
             }
 
-            // 5) Textos de abajo, que aparecen poco a poco
             if (t > 1100) {
                 ponerTransparencia(g2, Math.min(1f, (t - 1100) / 400f));
                 String sub = nivelesSuperados == 1 ? "Superaste 1 nivel" : "Niveles superados: " + nivelesSuperados;
@@ -620,13 +646,11 @@ public class PanelModoPatron extends PanelConFondo {
             g2.dispose();
         }
 
-        /** Transparencia de lo que se dibuje después (se combina con el desvanecimiento final). */
         private void ponerTransparencia(Graphics2D g2, float alfa) {
             float total = Math.max(0f, Math.min(1f, alfa * opacidad));
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, total));
         }
 
-        /** Curva de caída con rebote (0 → 1). */
         private double rebote(double x) {
             if (x < 1 / 2.75) {
                 return 7.5625 * x * x;
@@ -641,7 +665,6 @@ public class PanelModoPatron extends PanelConFondo {
             return 7.5625 * x * x + 0.984375;
         }
 
-        /** Cada hoja es una imagen que baja, se mece de lado a lado y gira. */
         private void dibujarHojas(Graphics2D g2, int w, int h, float seg) {
             for (int i = 0; i < HOJAS; i++) {
                 if (hojaImagen[i] == null) {
@@ -660,7 +683,6 @@ public class PanelModoPatron extends PanelConFondo {
             }
         }
 
-        /** Imagen del banner café con el texto encima. */
         private void dibujarBanner(Graphics2D g2, int cx, int cy, double escala) {
             int ancho = (int) (560 * escala);
             int alto = (int) (84 * escala);
@@ -671,7 +693,6 @@ public class PanelModoPatron extends PanelConFondo {
                     Recursos.CREMA, cx, cy);
         }
 
-        /** Dibuja un texto centrado en (cx, cy) con una sombra suave. */
         private void textoCentrado(Graphics2D g2, String texto, Font fuente, Color color, int cx, int cy) {
             g2.setFont(fuente);
             FontMetrics fm = g2.getFontMetrics();
@@ -683,22 +704,17 @@ public class PanelModoPatron extends PanelConFondo {
             g2.drawString(texto, x, y);
         }
 
-        /**
-         * El duende se arma con tres imágenes del mismo tamaño (265 x 250), una encima de otra:
-         * las manos (quietas), la cabeza (que gira) y las lágrimas (que resbalan por las mejillas).
-         */
         private void dibujarDuende(Graphics2D g2, double cx, double cy, double escala, double giro, long t) {
             AffineTransform antes = g2.getTransform();
-            g2.translate(cx, cy);         // (cx, cy) es el centro de la cara
+            g2.translate(cx, cy);
             g2.scale(escala, escala);
 
-            dibujarCapa(g2, duendeManos);                 // las manos no giran
+            dibujarCapa(g2, duendeManos);
 
-            g2.rotate(giro, 0, 40);                       // la cabeza niega (gira sobre el cuello)
-            boolean parpadeo = (t / 120) % 25 == 0;       // de vez en cuando cierra los ojos
+            g2.rotate(giro, 0, 40);
+            boolean parpadeo = (t / 120) % 25 == 0;
             dibujarCapa(g2, parpadeo ? duendeParpadeo : duendeTriste);
 
-            // Lágrimas: bajan desde los ojos y se van haciendo transparentes
             if (t > 1000 && lagrima != null) {
                 for (int lado = -1; lado <= 1; lado += 2) {
                     double ciclo = ((t - 1000 + (lado > 0 ? 450 : 0)) % 900) / 900.0;
@@ -712,15 +728,12 @@ public class PanelModoPatron extends PanelConFondo {
             g2.setTransform(antes);
         }
 
-        /** Dibuja una capa del duende; (130, 160) de la imagen es el centro de la cara. */
         private void dibujarCapa(Graphics2D g2, BufferedImage capa) {
             if (capa != null) {
                 g2.drawImage(capa, -130, -160, 265, 250, null);
             }
         }
     }
-
-    // =================================================================== utilidades
 
     private void destellar(int fila, int columna) {
         tablero.marcarCasilla(fila, columna, true);
@@ -776,9 +789,6 @@ public class PanelModoPatron extends PanelConFondo {
         etiqueta.setText(String.format(Locale.US, "%.1f segundos", restanteMs / 1000.0));
     }
 
-    // =================================================================== construcción de la vista
-
-    /** Nivel actual, longitud del patrón y los dos indicadores de tiempo. */
     private JPanel crearPanelIzquierdo() {
         PanelRedondeado panel = new PanelRedondeado(new GridBagLayout(), Recursos.CREMA, Recursos.CAFE, 30);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
@@ -795,7 +805,7 @@ public class PanelModoPatron extends PanelConFondo {
         PanelRedondeado circulo = new PanelRedondeado(new GridBagLayout(), Recursos.CAFE, Recursos.CAFE_OSCURO, 90);
         Dimension tamCirculo = new Dimension(58, 58);
         circulo.setPreferredSize(tamCirculo);
-        circulo.setMinimumSize(tamCirculo);   // evita que el círculo se encoja y corte el número
+        circulo.setMinimumSize(tamCirculo);
         lblNivel = Recursos.crearEtiqueta(String.valueOf(controller.getNivelPatron()), 30, true, Recursos.CREMA);
         circulo.add(lblNivel);
         JPanel envoltorio = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -875,7 +885,6 @@ public class PanelModoPatron extends PanelConFondo {
             texto.setWrapStyleWord(true);
             texto.setFont(Recursos.fuente(Font.PLAIN, 18));
             texto.setForeground(Recursos.TEXTO);
-            // Se centra verticalmente respecto al círculo numerado
             JPanel marcoTexto = new JPanel(new GridBagLayout());
             marcoTexto.setOpaque(false);
             GridBagConstraints gt = new GridBagConstraints();
@@ -895,7 +904,6 @@ public class PanelModoPatron extends PanelConFondo {
         return etiqueta;
     }
 
-    /** Barra de tiempo; trabaja en milisegundos para que avance de forma fluida. */
     private JProgressBar crearBarra(int maximoSegundos) {
         JProgressBar barra = new JProgressBar(0, maximoSegundos * 1000);
         barra.setValue(maximoSegundos * 1000);

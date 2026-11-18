@@ -34,6 +34,7 @@ public class JuegoController {
     private final AtomicBoolean ocupadoRostro = new AtomicBoolean(false);
 
     private Jugador jugadorActual;
+    private String nombreJugadorPatron = "";
     private VentanaPrincipal vista;
     private HiloSonido tareaSonido;
     private Thread hiloSonido;
@@ -120,6 +121,7 @@ public class JuegoController {
         jugadorActual = new Jugador(nombreUsuario);
         modoClasico.getJugador(1).setNombre(nombreUsuario);
         modoClasico.getJugador(2).setNombre("Jugador 2");
+        nombreJugadorPatron = "";
         SwingUtilities.invokeLater(() -> {
             vista.limpiarFormularios();
             vista.mostrarPantalla(VentanaPrincipal.HISTORIA);
@@ -423,6 +425,17 @@ public class JuegoController {
         return ModoPatron.TIEMPO_ENTRE_CASILLAS_SEG;
     }
 
+    public void setNombreJugadorPatron(String nombre) {
+        nombreJugadorPatron = nombre == null ? "" : nombre.trim();
+    }
+
+    public String getNombreJugadorPatron() {
+        if (nombreJugadorPatron.isEmpty()) {
+            return getNombreUsuarioActual();
+        }
+        return nombreJugadorPatron;
+    }
+
     public void iniciarPartidaPatron() {
         modoPatron.iniciarPartida();
     }
@@ -453,8 +466,9 @@ public class JuegoController {
 
     private void terminarPartidaPatron() {
         int superados = modoPatron.getNivelesSuperados();
-        if (superados > 0 && haySesion()) {
-            gestorPremios.registrarGanadorPatron(getNombreUsuarioActual(), superados);
+        String nombre = getNombreJugadorPatron();
+        if (superados > 0 && !nombre.isEmpty()) {
+            gestorPremios.registrarGanadorPatron(nombre, superados);
             vista.actualizarPremios();
         }
     }
@@ -568,5 +582,3 @@ public class JuegoController {
         hiloSonido = null;
     }
 }
-
-
