@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -107,7 +106,7 @@ public class GestorPremios {
 
     public synchronized List<Jugador> obtenerTop5() {
         List<Jugador> ordenados = new ArrayList<>(jugadores);
-        ordenados.sort(Comparator.comparingInt(Jugador::getIntentos));
+        mergeSort(ordenados, 0, ordenados.size() - 1, false);
         List<Jugador> top = new ArrayList<>(ordenados.subList(0, Math.min(5, ordenados.size())));
         for (Jugador j : top) {
             j.setPremio(calcularPremio(j.getIntentos(), tipoCambio));
@@ -117,12 +116,49 @@ public class GestorPremios {
 
     public synchronized List<Jugador> obtenerTop5Patron() {
         List<Jugador> ordenados = new ArrayList<>(jugadoresPatron);
-        ordenados.sort(Comparator.comparingDouble(Jugador::getPuntos).reversed());
+        mergeSort(ordenados, 0, ordenados.size() - 1, true);
         List<Jugador> top = new ArrayList<>(ordenados.subList(0, Math.min(5, ordenados.size())));
         for (Jugador j : top) {
             j.setPremio(calcularPremioPatron((int) j.getPuntos(), tipoCambio));
         }
         return top;
+    }
+
+    private static void mergeSort(List<Jugador> lista, int izq, int der, boolean modoPatron) {
+        if (izq >= der) {
+            return;
+        }
+        int medio = (izq + der) / 2;
+        mergeSort(lista, izq, medio, modoPatron);
+        mergeSort(lista, medio + 1, der, modoPatron);
+        merge(lista, izq, medio, der, modoPatron);
+    }
+
+    private static void merge(List<Jugador> lista, int izq, int medio, int der, boolean modoPatron) {
+        List<Jugador> izquierda = new ArrayList<>(lista.subList(izq, medio + 1));
+        List<Jugador> derecha = new ArrayList<>(lista.subList(medio + 1, der + 1));
+
+        int i = 0, j = 0, k = izq;
+        while (i < izquierda.size() && j < derecha.size()) {
+            if (vaPrimero(izquierda.get(i), derecha.get(j), modoPatron)) {
+                lista.set(k++, izquierda.get(i++));
+            } else {
+                lista.set(k++, derecha.get(j++));
+            }
+        }
+        while (i < izquierda.size()) {
+            lista.set(k++, izquierda.get(i++));
+        }
+        while (j < derecha.size()) {
+            lista.set(k++, derecha.get(j++));
+        }
+    }
+
+    private static boolean vaPrimero(Jugador a, Jugador b, boolean modoPatron) {
+        if (modoPatron) {
+            return a.getPuntos() >= b.getPuntos();
+        }
+        return a.getIntentos() <= b.getIntentos();
     }
 
     public String getTextoTipoCambio() {
