@@ -43,7 +43,7 @@ public class JuegoController {
         modoClasico = new ModoClasico(new Jugador("Jugador 1"), new Jugador("Jugador 2"));
         modoPatron = new ModoPatron();
         libro = new LibroHistoria();
-        gestorPremios = new GestorPremios("datos/premios.txt");
+        gestorPremios = new GestorPremios("datos/premios.txt", "datos/premios_patron.txt");
         gestorUsuarios = new GestorUsuarios("datos/usuarios.txt");
     }
 
@@ -92,7 +92,6 @@ public class JuegoController {
 
     public String getEstadoCamara() {
         String estado = camara.getEstado();
-        // Mientras se toma la foto o se reconoce el rostro se avisa en la etiqueta de la cámara
         if (ocupadoRostro.get() && "Cámara activa".equals(estado)) {
             return "Analizando tu rostro…";
         }
@@ -119,8 +118,6 @@ public class JuegoController {
 
     private void entrar(String nombreUsuario) {
         jugadorActual = new Jugador(nombreUsuario);
-        // El que inició sesión queda como Jugador 1 del modo clásico (su nombre sale ya escrito
-        // en la ventana de nombres). El Jugador 2 escribe el suyo en esa ventana.
         modoClasico.getJugador(1).setNombre(nombreUsuario);
         modoClasico.getJugador(2).setNombre("Jugador 2");
         SwingUtilities.invokeLater(() -> {
@@ -159,7 +156,6 @@ public class JuegoController {
             } catch (IllegalStateException e) {
                 mensaje(e.getMessage());
             } catch (RuntimeException e) {
-                // Antes un error inesperado de OpenCV cerraba el hilo sin avisar nada
                 System.err.println("Error en el reconocimiento facial: " + e);
                 mensaje("Ocurrió un error al reconocer el rostro. Inténtalo de nuevo "
                         + "o entra con tu correo y contraseña.");
@@ -305,11 +301,6 @@ public class JuegoController {
         return modoClasico.getTablero(numeroJugador).getRutasImagenes();
     }
 
-    /**
-     * Se llama cuando termina la partida del modo clásico: anota al ganador en la tabla de
-     * premios (con sus intentos) y muestra la animación. Si es empate no se anota a nadie,
-     * porque ninguno usó menos intentos que el otro.
-     */
     private void terminarPartidaClasico() {
         int ganador = modoClasico.getGanador();
         if (ganador == 1 || ganador == 2) {
@@ -319,7 +310,6 @@ public class JuegoController {
         mostrarAnimacionVictoria();
     }
 
-    /** Solo se llama desde el flujo del juego, cuando termina la partida. */
     public void mostrarAnimacionVictoria() {
         int ganador = modoClasico.getGanador();
         String mensaje;
@@ -331,7 +321,6 @@ public class JuegoController {
         vista.mostrarAnimacionVictoria(mensaje);
     }
 
-    /** Guarda los nombres escritos en la ventana; si un campo queda vacío se usa "Jugador N". */
     public void setNombresJugadoresClasico(String nombre1, String nombre2) {
         modoClasico.getJugador(1).setNombre(limpiarNombre(nombre1, 1));
         modoClasico.getJugador(2).setNombre(limpiarNombre(nombre2, 2));
@@ -344,9 +333,6 @@ public class JuegoController {
         return nombre.trim();
     }
 
-    // ------------------------------------------------------------ modo clásico
-
-    /** Tableros nuevos aleatorios, intentos en cero y turno al jugador 1. */
     public void iniciarPartidaClasico() {
         modoClasico.iniciarPartida();
     }
@@ -362,12 +348,11 @@ public class JuegoController {
     public ModoClasico.ResultadoJugada seleccionarCasillaClasico(int numeroJugador, int fila, int columna) {
         ModoClasico.ResultadoJugada resultado = modoClasico.seleccionarCasilla(numeroJugador, fila, columna);
         if (resultado == ModoClasico.ResultadoJugada.FIN_PARTIDA) {
-            terminarPartidaClasico(); // se anota al ganador y aparece la animación
+            terminarPartidaClasico();
         }
         return resultado;
     }
 
-    /** Voltea las cartas del fallo y cede el turno. Devuelve true si terminó la partida. */
     public boolean resolverFalloClasico() {
         boolean termino = modoClasico.resolverFallo();
         if (termino && modoClasico.isJuegoFinalizado()) {
@@ -376,7 +361,6 @@ public class JuegoController {
         return termino;
     }
 
-    /** Descuenta tiempo al jugador en turno. Devuelve true si se le acabó el tiempo. */
     public boolean actualizarTiempoClasico(long milisegundos) {
         boolean seAcabo = modoClasico.avanzarTiempo(milisegundos);
         if (seAcabo && modoClasico.isJuegoFinalizado()) {
@@ -385,12 +369,10 @@ public class JuegoController {
         return seAcabo;
     }
 
-    /** 0 si nadie ha completado su tablero; si no, 1 o 2 (el que terminó primero). */
     public int getTerminoPrimeroClasico() {
         return modoClasico.getTerminoPrimero();
     }
 
-    /** Intentos con los que el primero completó su tablero. */
     public int getIntentosPrimeroClasico() {
         return modoClasico.getIntentosPrimero();
     }
@@ -421,7 +403,6 @@ public class JuegoController {
         return modoClasico.isJuegoFinalizado();
     }
 
-    /** -1 sin decidir, 0 empate, 1 o 2. */
     public int getGanadorClasico() {
         return modoClasico.getGanador();
     }
@@ -442,30 +423,40 @@ public class JuegoController {
         return ModoPatron.TIEMPO_ENTRE_CASILLAS_SEG;
     }
 
-    // ------------------------------------------------------------ modo patrón
-
-    /** Empieza una partida nueva desde el nivel 1 (patrón de 3 casillas). */
     public void iniciarPartidaPatron() {
         modoPatron.iniciarPartida();
     }
 
-    /** Secuencia {fila, columna} que la vista debe mostrar al jugador. */
     public List<int[]> getSecuenciaPatron() {
         return modoPatron.getSecuenciaCorrecta();
     }
 
-    /** La vista terminó de mostrar el patrón; empiezan a correr los 12 s y los 2 s. */
     public void comenzarTurnoPatron() {
         modoPatron.comenzarTurnoJugador();
     }
 
     public ModoPatron.ResultadoPaso seleccionarCasillaPatron(int fila, int columna) {
-        return modoPatron.verificarPaso(fila, columna);
+        ModoPatron.ResultadoPaso resultado = modoPatron.verificarPaso(fila, columna);
+        if (resultado == ModoPatron.ResultadoPaso.INCORRECTO) {
+            terminarPartidaPatron();
+        }
+        return resultado;
     }
 
-    /** Descuenta tiempo; devuelve true si la partida terminó por tiempo. */
     public boolean actualizarTiempoPatron(long milisegundos) {
-        return modoPatron.avanzarTiempo(milisegundos);
+        boolean termino = modoPatron.avanzarTiempo(milisegundos);
+        if (termino) {
+            terminarPartidaPatron();
+        }
+        return termino;
+    }
+
+    private void terminarPartidaPatron() {
+        int superados = modoPatron.getNivelesSuperados();
+        if (superados > 0 && haySesion()) {
+            gestorPremios.registrarGanadorPatron(getNombreUsuarioActual(), superados);
+            vista.actualizarPremios();
+        }
     }
 
     public long getTiempoRestantePatronMs() {
@@ -501,13 +492,16 @@ public class JuegoController {
         return modoPatron.getMejorNivel();
     }
 
-    /** Detiene la partida sin mostrar mensajes (al salir de la pantalla). */
     public void cancelarPartidaPatron() {
         modoPatron.cancelarPartida();
     }
 
     public List<Jugador> getTop5() {
         return gestorPremios.obtenerTop5();
+    }
+
+    public List<Jugador> getTop5Patron() {
+        return gestorPremios.obtenerTop5Patron();
     }
 
     public String getTextoTipoCambio() {
