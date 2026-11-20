@@ -23,6 +23,19 @@ import java.util.function.Consumer;
 
 public class JuegoController {
 
+    // ===== Animación nueva del duende: rangos según los intentos con que se ganó =====
+    // Con 18 parejas, 18 intentos es lo mínimo posible (no fallar nunca): por eso es el rango secreto.
+    // MAX_INTENTOS_RANGO[i] es la mayor cantidad de intentos que entra en el rango i.
+    private static final String[] NOMBRES_RANGO = {
+            "Memoria de Árbol Ancestral", "Duende Jefe", "Guardián del Almacén",
+            "Archivero", "Duende Aprendiz", "Recolector Despistado"
+    };
+    // Parte del nombre de las imágenes de cada rango (rangos/rango_jefe.jpg, rangos/sello_jefe_01.jpg...)
+    private static final String[] CLAVES_RANGO = {
+            "ancestral", "jefe", "guardian", "archivero", "aprendiz", "despistado"
+    };
+    private static final int[] MAX_INTENTOS_RANGO = {18, 26, 34, 42, 50, Integer.MAX_VALUE};
+
     private final ModoClasico modoClasico;
     private final ModoPatron modoPatron;
     private final LibroHistoria libro;
@@ -321,6 +334,49 @@ public class JuegoController {
             mensaje = "¡Ganó " + getNombreJugador(ganador) + " con " + getIntentosJugador(ganador) + " intentos!";
         }
         vista.mostrarAnimacionVictoria(mensaje);
+        prepararAnimacionDuende(ganador); // animación nueva del duende (sale al cerrar la de victoria)
+    }
+
+    // ===== Animación nueva del duende =====
+
+    /**
+     * Calcula el rango del ganador y se lo pasa a la vista. En un empate los dos tienen los
+     * mismos intentos, así que reciben juntos el mismo rango.
+     */
+    private void prepararAnimacionDuende(int ganador) {
+        String nombre;
+        int intentos;
+        if (ganador == 1 || ganador == 2) {
+            nombre = getNombreJugador(ganador);
+            intentos = getIntentosJugador(ganador);
+        } else if (ganador == 0) {
+            nombre = getNombreJugador(1) + " y " + getNombreJugador(2);
+            intentos = getIntentosJugador(1);
+        } else {
+            return; // la partida no terminó
+        }
+        int rango = calcularRangoDuende(intentos);
+        vista.prepararAnimacionDuende(CLAVES_RANGO[rango], nombre, intentos, mensajeRangoDuende(rango, intentos));
+    }
+
+    /** Devuelve la posición del rango (0 = el mejor) según los intentos. */
+    public int calcularRangoDuende(int intentos) {
+        for (int i = 0; i < MAX_INTENTOS_RANGO.length; i++) {
+            if (intentos <= MAX_INTENTOS_RANGO[i]) {
+                return i;
+            }
+        }
+        return MAX_INTENTOS_RANGO.length - 1;
+    }
+
+    /** "¡Alcanzaste el rango máximo!" o cuántos intentos le faltaron para el rango de arriba. */
+    private String mensajeRangoDuende(int rango, int intentos) {
+        if (rango == 0) {
+            return "¡Alcanzaste el rango máximo!";
+        }
+        int faltan = intentos - MAX_INTENTOS_RANGO[rango - 1];
+        String cantidad = faltan == 1 ? "Te faltó 1 intento" : "Te faltaron " + faltan + " intentos";
+        return cantidad + " para ser " + NOMBRES_RANGO[rango - 1] + ".";
     }
 
     public void setNombresJugadoresClasico(String nombre1, String nombre2) {

@@ -1,5 +1,6 @@
 package vista;
 
+import apoyo.BotonImagen;
 import apoyo.Imagenes;
 import apoyo.PanelImagen;
 import apoyo.Recursos;
@@ -8,6 +9,11 @@ import controlador.JuegoController;
 import hilos.HiloAnimacion;
 import hilos.HiloSonido;
 
+import javax.imageio.ImageIO;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineEvent;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -16,6 +22,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -32,6 +39,20 @@ public class VentanaPrincipal extends JFrame {
     private static final int VUELTAS_VICTORIA = 2;
     private static final int RETRASO_VICTORIA_MS = 120;
     private static final String SONIDO_VICTORIA = Recursos.CARPETA_SONIDOS + "victoria.mp3";
+
+    // ===== Animación nueva del duende: el duende estampa el sello del rango obtenido =====
+    // Todas las imágenes están en recursos/imagenes/rangos/ y miden 1400 x 800 px.
+    // Las zonas de texto están medidas sobre ese tamaño y se escalan igual que la imagen.
+    private static final String CARPETA_RANGOS = "rangos/";
+    private static final int ANCHO_TARJETA = 1400;
+    private static final int ALTO_TARJETA = 800;
+    private static final Rectangle ZONA_NOMBRE = new Rectangle(1045, 254, 320, 46);
+    private static final Rectangle ZONA_INTENTOS = new Rectangle(1225, 480, 140, 48);
+    private static final Rectangle ZONA_MENSAJE = new Rectangle(895, 560, 470, 92);
+    private static final Rectangle ZONA_BOTON = new Rectangle(940, 676, 320, 72);
+    // Tiempo de cada cuadro: el duende con el papel en blanco, el sello cayendo y el golpe
+    private static final int[] RETRASOS_SELLO_MS = {600, 90, 90, 450};
+    private static final String SONIDO_SELLO = Recursos.CARPETA_SONIDOS + "BOINK.wav";
 
     private static final String[] PANTALLAS = {LOGIN, HISTORIA, CLASICO, PATRON, PREMIOS};
     private static final String[] NOMBRES_PESTANAS =
@@ -63,6 +84,24 @@ public class VentanaPrincipal extends JFrame {
     private HiloSonido tareaSonidoVictoria;
     private ImageIcon[] cacheVictoria;      // fotogramas ya escalados (la 2a victoria sale al instante)
     private Dimension tamanoCacheVictoria;
+
+    // ===== Animación nueva del duende (sello del rango) =====
+    private PanelImagen capaRango;          // capa oscura (imagen semitransparente) sobre la ventana
+    private JPanel tarjetaRango;            // contiene la imagen y, encima, los textos y el botón
+    private JLabel lblImagenRango;          // muestra los cuadros de la animación y la tarjeta final
+    private JLabel lblNombreRango;
+    private JLabel lblIntentosRango;
+    private JLabel lblMensajeRango;
+    private BotonImagen btnContinuarRango;
+    private HiloAnimacion tareaRango;
+    private Thread hiloRango;
+    private Timer temporizadorSonidoSello;
+    private ImageIcon iconoTarjetaRango;    // tarjeta final del rango (ya escalada)
+    private boolean hayRangoPendiente = false;
+    private String claveRangoPendiente;     // "ancestral", "jefe", "guardian", "archivero", "aprendiz" o "despistado"
+    private String nombreRangoPendiente;
+    private int intentosRangoPendiente;
+    private String mensajeRangoPendiente;
 
     public VentanaPrincipal(JuegoController controller) {
         this.controller = controller;
@@ -129,6 +168,7 @@ public class VentanaPrincipal extends JFrame {
         add(contenedor, BorderLayout.CENTER);
 
         crearCapaVictoria();
+        crearCapaRango(); // animación nueva del duende
         precargarFotogramasVictoria();
         addWindowListener(new WindowAdapter() {
             @Override
@@ -219,6 +259,7 @@ public class VentanaPrincipal extends JFrame {
             public void mousePressed(MouseEvent e) {
                 if (victoriaTerminada && e.getWhen() >= momentoFinVictoria) {
                     detenerAnimacionVictoria();
+                    iniciarAnimacionDuende(); // animación nueva del duende (sale después de la original)
                 }
             }
         });
@@ -349,5 +390,241 @@ public class VentanaPrincipal extends JFrame {
             hiloVictoria = null;
         }
         capaVictoria.setVisible(false);
+    }
+
+    // =====================================================================================
+    // ===== Animación nueva del duende: el duende estampa el sello del rango obtenido =====
+    // =====================================================================================
+    // Sale cuando el jugador cierra la animación de victoria original (esa no se modifica).
+    // Todo lo que se ve son imágenes: los cuadros del sello y la tarjeta del rango. Encima de la
+    // tarjeta solo se ponen etiquetas con el nombre, los intentos y el mensaje, y el botón
+    // "Continuar" con la imagen verde del juego (igual que en las ventanillas de aviso).
+
+    /** El controlador avisa qué rango obtuvo el ganador; se muestra al cerrar la animación de victoria. */
+    public void prepararAnimacionDuende(String claveRango, String nombre, int intentos, String mensaje) {
+        claveRangoPendiente = claveRango;
+        nombreRangoPendiente = nombre;
+        intentosRangoPendiente = intentos;
+        mensajeRangoPendiente = mensaje;
+        hayRangoPendiente = true;
+    }
+
+    /** Crea la capa de la animación del duende (una sola vez, al abrir la ventana). */
+    private void crearCapaRango() {
+        // Fondo oscuro: es una imagen negra semitransparente que se estira a toda la ventana
+        capaRango = new PanelImagen(CARPETA_RANGOS + "fondo_oscuro.png", new GridBagLayout(), new Dimension(10, 10));
+
+        // Sin layout: cada texto va en la zona de la tarjeta que le corresponde
+        tarjetaRango = new JPanel(null);
+        tarjetaRango.setOpaque(false);
+
+        lblImagenRango = new JLabel();
+        lblNombreRango = new JLabel("", SwingConstants.CENTER);
+        lblNombreRango.setForeground(Recursos.CAFE_OSCURO);
+        lblIntentosRango = new JLabel("", SwingConstants.CENTER);
+        lblIntentosRango.setForeground(Recursos.ROJO);
+        lblMensajeRango = new JLabel("", SwingConstants.CENTER);
+        lblMensajeRango.setForeground(Recursos.CAFE);
+
+        btnContinuarRango = new BotonImagen("Continuar", RutasLogin.BOTON_VERDE, RutasLogin.BOTON_VERDE_PRES);
+        btnContinuarRango.addActionListener(evt -> cerrarAnimacionDuende());
+
+        // Lo primero que se agrega queda encima: textos y botón arriba, la imagen al fondo
+        tarjetaRango.add(lblNombreRango);
+        tarjetaRango.add(lblIntentosRango);
+        tarjetaRango.add(lblMensajeRango);
+        tarjetaRango.add(btnContinuarRango);
+        tarjetaRango.add(lblImagenRango);
+        capaRango.add(tarjetaRango);
+
+        // Un clic durante la animación la salta y muestra la tarjeta de una vez.
+        // La capa también atrapa los clics para que no lleguen a la pantalla de abajo.
+        capaRango.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (tareaRango != null) {
+                    tareaRango.detener();
+                    hiloRango.interrupt();
+                    mostrarTarjetaRango();
+                }
+            }
+        });
+        capaRango.setVisible(false);
+    }
+
+    /** Arranca la animación del sello y al final deja la tarjeta del rango con los datos del ganador. */
+    private void iniciarAnimacionDuende() {
+        if (!hayRangoPendiente) {
+            return;
+        }
+        hayRangoPendiente = false;
+
+        // Tamaño de la tarjeta: lo más grande posible sin salirse de la ventana (nunca más de 1400 x 800)
+        JRootPane raiz = getRootPane();
+        double e = Math.min(1.0, Math.min((raiz.getWidth() - 60) / (double) ANCHO_TARJETA,
+                (raiz.getHeight() - 60) / (double) ALTO_TARJETA));
+        e = Math.max(0.3, e);
+        int ancho = (int) Math.round(ANCHO_TARJETA * e);
+        int alto = (int) Math.round(ALTO_TARJETA * e);
+
+        // Cuadros: el duende con el papel en blanco y luego el sello del rango cayendo sobre el papel
+        String clave = claveRangoPendiente;
+        String[] rutas = {
+                CARPETA_RANGOS + "inspeccion_01.jpg",
+                CARPETA_RANGOS + "sello_" + clave + "_01.jpg",
+                CARPETA_RANGOS + "sello_" + clave + "_02.jpg",
+                CARPETA_RANGOS + "sello_" + clave + "_03.jpg"
+        };
+        ImageIcon[] cuadros = new ImageIcon[rutas.length];
+        for (int i = 0; i < rutas.length; i++) {
+            cuadros[i] = cargarImagenRango(rutas[i], ancho, alto);
+        }
+        iconoTarjetaRango = cargarImagenRango(CARPETA_RANGOS + "rango_" + clave + ".jpg", ancho, alto);
+
+        // Posición y letra de cada elemento según la escala de la tarjeta
+        tarjetaRango.setPreferredSize(new Dimension(ancho, alto));
+        lblImagenRango.setBounds(0, 0, ancho, alto);
+        lblImagenRango.setIcon(cuadros[0]);
+        colocarTextoRango(lblNombreRango, nombreRangoPendiente, ZONA_NOMBRE, Font.BOLD, 36, e);
+        colocarTextoRango(lblIntentosRango, String.valueOf(intentosRangoPendiente), ZONA_INTENTOS, Font.BOLD, 44, e);
+        colocarMensajeRango(mensajeRangoPendiente, e);
+        btnContinuarRango.setBounds(escalarZona(ZONA_BOTON, e));
+        btnContinuarRango.setFont(Recursos.fuente(Font.BOLD, (int) Math.round(30 * e)));
+
+        // Mientras corre la animación solo se ve la imagen; los textos aparecen con la tarjeta
+        mostrarDatosRango(false);
+        setGlassPane(capaRango);
+        capaRango.setVisible(true);
+        capaRango.revalidate();
+
+        tareaRango = new HiloAnimacion(lblImagenRango, cuadros, RETRASOS_SELLO_MS, false, this::mostrarTarjetaRango);
+        hiloRango = new Thread(tareaRango, "HiloAnimacionDuende");
+        hiloRango.setDaemon(true);
+        hiloRango.start();
+
+        // El golpe del sello suena justo en el cuadro del destello (el último de la animación)
+        int momentoGolpe = RETRASOS_SELLO_MS[0] + RETRASOS_SELLO_MS[1] + RETRASOS_SELLO_MS[2];
+        temporizadorSonidoSello = new Timer(momentoGolpe, evt -> reproducirSonidoSello());
+        temporizadorSonidoSello.setRepeats(false);
+        temporizadorSonidoSello.start();
+    }
+
+    /** Deja la tarjeta final del rango con el nombre, los intentos, el mensaje y el botón. */
+    private void mostrarTarjetaRango() {
+        tareaRango = null;
+        hiloRango = null;
+        if (temporizadorSonidoSello != null) { // si se saltó la animación, ya no suena el golpe
+            temporizadorSonidoSello.stop();
+            temporizadorSonidoSello = null;
+        }
+        lblImagenRango.setIcon(iconoTarjetaRango);
+        mostrarDatosRango(true);
+        btnContinuarRango.requestFocusInWindow();
+    }
+
+    /** Cierra la tarjeta del rango y deja todo como estaba (botón "Continuar"). */
+    private void cerrarAnimacionDuende() {
+        if (tareaRango != null) {
+            tareaRango.detener();
+            hiloRango.interrupt();
+            tareaRango = null;
+            hiloRango = null;
+        }
+        if (temporizadorSonidoSello != null) {
+            temporizadorSonidoSello.stop();
+            temporizadorSonidoSello = null;
+        }
+        capaRango.setVisible(false);
+        setGlassPane(capaVictoria); // se devuelve la capa de la victoria original (queda oculta)
+        lblImagenRango.setIcon(null);
+        iconoTarjetaRango = null;
+    }
+
+    private void mostrarDatosRango(boolean visibles) {
+        lblNombreRango.setVisible(visibles);
+        lblIntentosRango.setVisible(visibles);
+        lblMensajeRango.setVisible(visibles);
+        btnContinuarRango.setVisible(visibles);
+    }
+
+    /** Pasa una zona medida en la imagen de 1400 x 800 al tamaño con que se muestra la tarjeta. */
+    private Rectangle escalarZona(Rectangle zona, double e) {
+        return new Rectangle((int) Math.round(zona.x * e), (int) Math.round(zona.y * e),
+                (int) Math.round(zona.width * e), (int) Math.round(zona.height * e));
+    }
+
+    /** Coloca un texto de una línea en su zona; si no cabe, se reduce la letra. */
+    private void colocarTextoRango(JLabel etiqueta, String texto, Rectangle zona, int estilo, int tamano, double e) {
+        Rectangle z = escalarZona(zona, e);
+        etiqueta.setText(texto);
+        etiqueta.setBounds(z);
+        for (int tam = (int) Math.round(tamano * e); tam >= 10; tam--) {
+            etiqueta.setFont(Recursos.fuente(estilo, tam));
+            if (etiqueta.getFontMetrics(etiqueta.getFont()).stringWidth(texto) <= z.width - 6) {
+                break;
+            }
+        }
+    }
+
+    /** Coloca el mensaje ("Te faltaron X intentos...") centrado, en una o dos líneas. */
+    private void colocarMensajeRango(String mensaje, double e) {
+        Rectangle z = escalarZona(ZONA_MENSAJE, e);
+        String texto = mensaje == null ? "" : mensaje.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        lblMensajeRango.setText("<html><div style='text-align:center; width:" + (z.width - 20) + "'>"
+                + texto + "</div></html>");
+        lblMensajeRango.setBounds(z);
+        for (int tam = (int) Math.round(28 * e); tam >= 10; tam--) {
+            lblMensajeRango.setFont(Recursos.fuente(Font.BOLD | Font.ITALIC, tam));
+            if (lblMensajeRango.getPreferredSize().height <= z.height) {
+                break;
+            }
+        }
+    }
+
+    /**
+     * Lee una imagen de la animación del duende y la deja del tamaño de la tarjeta.
+     * No se guarda en la caché de Imagenes porque son imágenes grandes que se usan una sola vez.
+     */
+    private ImageIcon cargarImagenRango(String ruta, int ancho, int alto) {
+        BufferedImage original = null;
+        File archivo = new File(Recursos.CARPETA_IMAGENES + ruta);
+        try {
+            if (archivo.exists()) {
+                original = ImageIO.read(archivo);
+            }
+        } catch (IOException ex) {
+            System.err.println("No se pudo leer " + archivo + ": " + ex.getMessage());
+        }
+        if (original == null) {
+            System.err.println("Falta la imagen de la animación del duende: " + archivo);
+            return Recursos.cargarImagen(ruta, ancho, alto, Recursos.CREMA_OSCURO);
+        }
+        // Mismo escalado rápido que usa la animación de victoria
+        BufferedImage escalada = new BufferedImage(ancho, alto, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = escalada.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.drawImage(original, 0, 0, ancho, alto, null);
+        g2.dispose();
+        return new ImageIcon(escalada);
+    }
+
+    /** Sonido corto del golpe del sello (BOINK.wav). Si no está, la animación sigue sin sonido. */
+    private void reproducirSonidoSello() {
+        File archivo = new File(SONIDO_SELLO);
+        if (!archivo.exists()) {
+            return;
+        }
+        try (AudioInputStream audio = AudioSystem.getAudioInputStream(archivo)) {
+            Clip clip = AudioSystem.getClip();
+            clip.open(audio);
+            clip.addLineListener(ev -> {
+                if (ev.getType() == LineEvent.Type.STOP) {
+                    clip.close();
+                }
+            });
+            clip.start();
+        } catch (Exception ex) {
+            System.err.println("No se pudo reproducir el sonido del sello: " + ex.getMessage());
+        }
     }
 }
